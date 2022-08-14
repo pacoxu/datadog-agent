@@ -20,6 +20,7 @@ static __always_inline tls_probe_data_t* get_probe_data() {
 // func (c *Conn) Write(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Write")
 int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
+	log_debug("##### WRITE\n");
 	tls_probe_data_t* pd = get_probe_data();
 	if (pd == NULL)
 		return 1;
@@ -51,6 +52,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read")
 int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
+    log_debug("##### READ\n");
 	tls_probe_data_t* pd = get_probe_data();
 	if (pd == NULL)
 		return 1;
@@ -81,6 +83,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+	log_debug("##### READ RETURN\n");
 	tls_probe_data_t* pd = get_probe_data();
 	if (pd == NULL)
 		return 1;
@@ -123,6 +126,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 // func (c *Conn) Close(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Close")
 int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
+    log_debug("##### CLOSE\n");
 	tls_probe_data_t* pd = get_probe_data();
 	if (pd == NULL)
 		return 1;

@@ -136,10 +136,12 @@ func TestMyStamTest(t *testing.T) {
 	require.NoError(t, err)
 	defer monitor.Stop()
 
-	time.Sleep(5 * time.Second)
+	fmt.Println("passed")
+	time.Sleep(20 * time.Second)
 	fReq := requestGenerator(t, "127.0.0.1:8443", true)
 	req := fReq()
 
+	time.Sleep(5 * time.Second)
 	stats := monitor.GetHTTPStats()
 	includesRequest(t, stats, req)
 }

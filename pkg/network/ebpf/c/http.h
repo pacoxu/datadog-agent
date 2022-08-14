@@ -180,6 +180,9 @@ static __always_inline bool http_closed(http_transaction_t *http, skb_info_t *sk
 }
 
 static __always_inline int http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags) {
+    if (http_stack->tup.dport == 443) {
+        log_debug("##### HERE! HTTP PROCESS\n");
+    }
     char *buffer = (char *)http_stack->request_fragment;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;

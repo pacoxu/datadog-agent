@@ -84,9 +84,9 @@ type goTLSBinaryProgram struct {
 }
 
 func NewGoTLSProgram(c *config.Config, sockFDMap *ebpf.Map) (*GoTLSProgram, error) {
-	//if !c.EnableHTTPSMonitoring {
-	//	return nil, nil
-	//}
+	if !c.EnableHTTPSMonitoring {
+		return nil, nil
+	}
 
 	var bytecode bytecode.AssetReader
 	var err error
@@ -154,16 +154,16 @@ func (o *GoTLSProgram) Start() {
 	}
 
 	// TODO remove
-	testProg := os.Getenv("GO_TLS_TEST")
-	//testProg := "/proc/457357/exe"
+	//testProg := os.Getenv("GO_TLS_TEST")
+	testProg := "/proc/94147/exe"
 	if testProg != "" {
-		go func() {
-			time.Sleep(2 * time.Second)
-			err := o.TryInitBinaryTracer(testProg)
-			if err != nil {
-				log.Warnf("failed to initialize go tls binary tracer: %s", err)
-			}
-		}()
+		//go func() {
+		//time.Sleep(2 * time.Second)
+		err := o.TryInitBinaryTracer(testProg)
+		if err != nil {
+			log.Warnf("failed to initialize go tls binary tracer: %s", err)
+		}
+		//}()
 	}
 }
 

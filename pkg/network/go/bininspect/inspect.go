@@ -11,7 +11,6 @@ package bininspect
 import (
 	"debug/dwarf"
 	"debug/elf"
-	"debug/gosym"
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
@@ -315,7 +314,7 @@ func (i *inspectionState) getGoroutineIDOffset() (uint64, error) {
 // - https://github.com/go-delve/delve/pull/2704/files#diff-fb7b7a020e32bf8bf477c052ac2d2857e7e587478be6039aebc7135c658417b2R769
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L86-L95
 // - https://github.com/go-delve/delve/blob/75bbbbb60cecda0d65c63de7ae8cb8b8412d6fc3/pkg/proc/breakpoints.go#L374
-func (i *inspectionState) findReturnLocations(lowPC, highPC, functionOffset uint64) ([]uint64, error) {
+func (i *inspectionState) findReturnLocations(functionOffset uint64, sym elf.Symbol) ([]uint64, error) {
 	textSection := i.elfFile.Section(".text")
 	if textSection == nil {
 		return nil, fmt.Errorf("no %q section found in binary file", ".text")
@@ -323,17 +322,17 @@ func (i *inspectionState) findReturnLocations(lowPC, highPC, functionOffset uint
 
 	switch i.arch {
 	case GoArchX86_64:
-		return asmscan.ScanFunction(textSection, lowPC, highPC, functionOffset, asmscan.FindX86_64ReturnInstructions)
+		return asmscan.ScanFunction(textSection, functionOffset, sym, asmscan.FindX86_64ReturnInstructions)
 	case GoArchARM64:
-		return asmscan.ScanFunction(textSection, lowPC, highPC, functionOffset, asmscan.FindARM64ReturnInstructions)
+		return asmscan.ScanFunction(textSection, functionOffset, sym, asmscan.FindARM64ReturnInstructions)
 	default:
 		return nil, fmt.Errorf("unsupported architecture %q", i.arch)
 	}
 }
 
-func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
+func SymbolToOffset(f *elf.File, symbol string) (uint32, elf.Symbol, error) {
 	if f == nil {
-		return 0, errors.New("got nil elf file")
+		return 0, elf.Symbol{}, errors.New("got nil elf file")
 	}
 
 	regularSymbols, regularSymbolsErr := f.Symbols()
@@ -341,7 +340,7 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
-		return 0, fmt.Errorf("could not open symbol sections to resolve symbol offset: %w, %w", regularSymbolsErr, dynamicSymbolsErr)
+		return 0, elf.Symbol{}, fmt.Errorf("could not open symbol sections to resolve symbol offset: %w, %w", regularSymbolsErr, dynamicSymbolsErr)
 	}
 
 	// Concatenating into a single list.
@@ -370,40 +369,28 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 			}
 
 			if executableSection == nil {
-				return 0, errors.New("could not find symbol in executable sections of binary")
+				return 0, elf.Symbol{}, errors.New("could not find symbol in executable sections of binary")
 			}
 
-			return uint32(syms[j].Value - executableSection.Addr + executableSection.Offset), nil
+			return uint32(syms[j].Value - executableSection.Addr + executableSection.Offset), syms[j], nil
 		}
 	}
 
-	return 0, fmt.Errorf("symbol %s not found in file", symbol)
+	return 0, elf.Symbol{}, fmt.Errorf("symbol %s not found in file", symbol)
 }
 
 func (i *inspectionState) findFunctions() ([]FunctionMetadata, error) {
 	var functionMetadata []FunctionMetadata
-	symbolTable, err := i.parseSymbolTable()
-	if err != nil {
-		return nil, err
-	}
 
 	for _, funcConfig := range i.config.Functions {
-		offset, err := SymbolToOffset(i.elfFile, funcConfig.Name)
+		offset, sym, err := SymbolToOffset(i.elfFile, funcConfig.Name)
 		if err != nil {
 			return nil, fmt.Errorf("could not find location for function %q: %w", funcConfig.Name, err)
 		}
 
-		f := symbolTable.LookupFunc(funcConfig.Name)
-		if f == nil {
-			return nil, fmt.Errorf("could not find func %q in symbol table", funcConfig.Name)
-		}
-
-		lowPC := f.Entry
-		highPC := f.End
-
 		var returnLocations []uint64
 		if funcConfig.IncludeReturnLocations {
-			locations, err := i.findReturnLocations(lowPC, highPC, uint64(offset))
+			locations, err := i.findReturnLocations(uint64(offset), sym)
 			if err != nil {
 				return nil, fmt.Errorf("could not find return locations for function %q: %w", funcConfig.Name, err)
 			}
@@ -421,39 +408,4 @@ func (i *inspectionState) findFunctions() ([]FunctionMetadata, error) {
 	}
 
 	return functionMetadata, nil
-}
-
-func (i *inspectionState) parseSymbolTable() (*gosym.Table, error) {
-	pclntabSection := i.elfFile.Section(".gopclntab")
-	if pclntabSection == nil {
-		return nil, fmt.Errorf("no %q section found in binary file", ".gopclntab")
-	}
-
-	pclntabData, err := pclntabSection.Data()
-	if err != nil {
-		return nil, fmt.Errorf("error while reading pclntab data from binary: %w", err)
-	}
-
-	symtabSection := i.elfFile.Section(".gosymtab")
-	if symtabSection == nil {
-		return nil, fmt.Errorf("no %q section found in binary file", ".gosymtab")
-	}
-
-	symtabData, err := symtabSection.Data()
-	if err != nil {
-		return nil, fmt.Errorf("error while reading symtab data from binary: %w", err)
-	}
-
-	textSection := i.elfFile.Section(".text")
-	if textSection == nil {
-		return nil, fmt.Errorf("no %q section found in binary file", ".text")
-	}
-
-	lineTable := gosym.NewLineTable(pclntabData, textSection.Addr)
-	table, err := gosym.NewTable(symtabData, lineTable)
-	if err != nil {
-		return nil, fmt.Errorf("error while parsing symbol table: %w", err)
-	}
-
-	return table, nil
 }

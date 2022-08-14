@@ -39,8 +39,10 @@ import (
 // - https://github.com/iovisor/bcc/issues/1320#issuecomment-407927542
 //   (which describes how this approach works as a workaround)
 // - https://github.com/golang/go/issues/22008
-func ScanFunction(textSection *elf.Section, lowPC, highPC, functionOffset uint64, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
+func ScanFunction(textSection *elf.Section, functionOffset uint64, sym elf.Symbol, scanInstructions func(data []byte) ([]uint64, error)) ([]uint64, error) {
 	// Determine the offset in the section that the function starts at
+	lowPC := sym.Value
+	highPC := lowPC + sym.Size
 	offset := int64(lowPC - textSection.Addr)
 	buf := make([]byte, int(highPC-lowPC))
 
