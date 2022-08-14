@@ -120,6 +120,23 @@ func TestUnknownMethodRegression(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestTestTest(t *testing.T) {
+	srvDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
+		EnableTLS:        true,
+		EnableKeepAlives: true,
+	})
+	defer srvDoneFn()
+
+	var first string
+	fmt.Scanln(&first)
+
+	a := os.Getpid()
+	_ = a
+	requestGenerator(t, "127.0.0.1:8443", true)
+
+	time.Sleep(5 * time.Second)
+}
+
 func TestMyStamTest(t *testing.T) {
 	srvDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
 		EnableTLS:        true,
@@ -127,7 +144,7 @@ func TestMyStamTest(t *testing.T) {
 	})
 	defer srvDoneFn()
 
-	err := os.Setenv("GO_TLS_TEST", fmt.Sprintf("/proc/%d/exe", os.Getpid()))
+	err := os.Setenv("GO_TLS_TEST", fmt.Sprintf("/proc/%d/exe", 98169))
 	require.NoError(t, err)
 
 	monitor, err := NewMonitor(config.New(), nil, nil)

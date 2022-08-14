@@ -84,9 +84,9 @@ type goTLSBinaryProgram struct {
 }
 
 func NewGoTLSProgram(c *config.Config, sockFDMap *ebpf.Map) (*GoTLSProgram, error) {
-	if !c.EnableHTTPSMonitoring {
-		return nil, nil
-	}
+	//if !c.EnableHTTPSMonitoring {
+	//	return nil, nil
+	//}
 
 	var bytecode bytecode.AssetReader
 	var err error
@@ -155,7 +155,7 @@ func (o *GoTLSProgram) Start() {
 
 	// TODO remove
 	//testProg := os.Getenv("GO_TLS_TEST")
-	testProg := "/proc/94147/exe"
+	testProg := "/proc/99270/exe"
 	if testProg != "" {
 		//go func() {
 		//time.Sleep(2 * time.Second)
@@ -356,19 +356,19 @@ func (o *GoTLSProgram) startBinaryProgram(binaryPath string, elfFile *elf.File, 
 	uid := getUID(binaryPath)
 
 	readReturnProbes := []*manager.Probe{}
-	for i, offset := range attachmentArgs.readReturnAddresses {
-		readReturnProbes = append(readReturnProbes, &manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  readReturnProbe,
-				EBPFFuncName: readReturnFuncName,
-				UID:          makeReturnUID(uid, i),
-			},
-			BinaryPath: binaryPath,
-			// Each return probe needs to have a unique uid value,
-			// so add the index to the binary UID to make an overall UID.
-			UprobeOffset: offset,
-		})
-	}
+	//for i, offset := range attachmentArgs.readReturnAddresses {
+	//	readReturnProbes = append(readReturnProbes, &manager.Probe{
+	//		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	//			EBPFSection:  readReturnProbe,
+	//			EBPFFuncName: readReturnFuncName,
+	//			UID:          makeReturnUID(uid, i),
+	//		},
+	//		BinaryPath: binaryPath,
+	//		// Each return probe needs to have a unique uid value,
+	//		// so add the index to the binary UID to make an overall UID.
+	//		UprobeOffset: offset,
+	//	})
+	//}
 
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -394,24 +394,24 @@ func (o *GoTLSProgram) startBinaryProgram(binaryPath string, elfFile *elf.File, 
 					UID:          uid,
 				},
 			},
-			{
-				BinaryPath: binaryPath,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  readProbe,
-					EBPFFuncName: readFuncName,
-					UID:          uid,
-				},
-				UprobeOffset: attachmentArgs.readAddress,
-			},
-			{
-				BinaryPath: binaryPath,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  closeProbe,
-					EBPFFuncName: closeFuncName,
-					UID:          uid,
-				},
-				UprobeOffset: attachmentArgs.closeAddress,
-			},
+			//{
+			//	BinaryPath: binaryPath,
+			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			//		EBPFSection:  readProbe,
+			//		EBPFFuncName: readFuncName,
+			//		UID:          uid,
+			//	},
+			//	UprobeOffset: attachmentArgs.readAddress,
+			//},
+			//{
+			//	BinaryPath: binaryPath,
+			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			//		EBPFSection:  closeProbe,
+			//		EBPFFuncName: closeFuncName,
+			//		UID:          uid,
+			//	},
+			//	UprobeOffset: attachmentArgs.closeAddress,
+			//},
 		}, readReturnProbes...),
 	}
 
