@@ -84,50 +84,6 @@ func TestProcessCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "fallback case",
-			resource: compliance.Resource{
-				ResourceCommon: compliance.ResourceCommon{
-					Process: &compliance.Process{
-						Name: "proc1",
-					},
-				},
-				Condition: `process.flag("--tlsverify") != ""`,
-				Fallback: &compliance.Fallback{
-					Condition: `!process.hasFlag("--tlsverify")`,
-					Resource: compliance.Resource{
-						ResourceCommon: compliance.ResourceCommon{
-							Process: &compliance.Process{
-								Name: "proc2",
-							},
-						},
-						Condition: `process.hasFlag("--tlsverify")`,
-					},
-				},
-			},
-			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1"},
-				},
-				38: {
-					Name:    "proc2",
-					Cmdline: []string{"arg1", "--tlsverify"},
-				},
-			},
-			expectReport: &compliance.Report{
-				Passed: true,
-				Data: event.Data{
-					"process.name":    "proc2",
-					"process.exe":     "",
-					"process.cmdLine": []string{"arg1", "--tlsverify"},
-				},
-				Resource: compliance.ReportResource{
-					ID:   "38",
-					Type: "process",
-				},
-			},
-		},
-		{
 			name: "process not found",
 			resource: compliance.Resource{
 				ResourceCommon: compliance.ResourceCommon{
