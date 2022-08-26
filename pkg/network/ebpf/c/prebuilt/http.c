@@ -10,6 +10,7 @@
 #include "tags-types.h"
 #include "sock.h"
 #include "port_range.h"
+#include "http-notifications.h"
 
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3

@@ -1,3 +1,4 @@
+//go:build linux_bpf
 // +build linux_bpf
 
 package gotls
@@ -13,15 +14,16 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/cilium/ebpf"
+	"github.com/twmb/murmur3"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
-	"github.com/twmb/murmur3"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -352,8 +354,10 @@ func (o *GoTLSProgram) startBinaryProgram(binaryPath string, elfFile *elf.File, 
 			BinaryPath: binaryPath,
 			// Each return probe needs to have a unique uid value,
 			// so add the index to the binary UID to make an overall UID.
-			UID:          makeReturnUID(uid, i),
-			Section:      readReturnProbe,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:         makeReturnUID(uid, i),
+				EBPFSection: readReturnProbe,
+			},
 			UprobeOffset: offset,
 		})
 	}
@@ -372,9 +376,9 @@ func (o *GoTLSProgram) startBinaryProgram(binaryPath string, elfFile *elf.File, 
 			// are added below using manager.Options.MapEditors
 		},
 		Probes: append([]*manager.Probe{
-			{BinaryPath: binaryPath, UID: uid, Section: writeProbe, UprobeOffset: attachmentArgs.writeAddress},
-			{BinaryPath: binaryPath, UID: uid, Section: readProbe, UprobeOffset: attachmentArgs.readAddress},
-			{BinaryPath: binaryPath, UID: uid, Section: closeProbe, UprobeOffset: attachmentArgs.closeAddress},
+			{BinaryPath: binaryPath, ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: uid, EBPFSection: writeProbe}, UprobeOffset: attachmentArgs.writeAddress},
+			{BinaryPath: binaryPath, ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: uid, EBPFSection: readProbe}, UprobeOffset: attachmentArgs.readAddress},
+			{BinaryPath: binaryPath, ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: uid, EBPFSection: closeProbe}, UprobeOffset: attachmentArgs.closeAddress},
 		}, readReturnProbes...),
 	}
 

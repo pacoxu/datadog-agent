@@ -4,8 +4,6 @@
 #include "tracer.h"
 #include <linux/types.h>
 
-#include "sockfd-shared-maps.h"
-
 // This map is used to to temporarily store function arguments (sockfd) for
 // sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.
 // * Key is the pid_tgid;

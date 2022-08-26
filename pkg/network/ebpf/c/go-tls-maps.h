@@ -7,11 +7,10 @@
 #include "http-types.h"
 #include "go-tls-types.h"
 
-// Include the shared maps needed to enqueue http transactions
-#include "http-shared-maps.h"
+#include "http-maps.h"
 
 // Include the shared map to resolve sock structs by socket file descriptors
-#include "sockfd-shared-maps.h"
+#include "sockfd.h"
 
 /* This map passes data from user-space to the probes before they get attached */
 struct bpf_map_def SEC("maps/probe_data") probe_data = {

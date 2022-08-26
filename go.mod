@@ -97,11 +97,11 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-delve/delve v1.7.3
+	github.com/go-delve/delve v1.9.0
 	github.com/go-ini/ini v1.66.6
 	github.com/go-ole/go-ole v1.2.6
 	github.com/go-openapi/spec v0.20.4
-	github.com/go-sql-driver/mysql v1.5.0 // indirect
+	github.com/go-sql-driver/mysql v1.6.0 // indirect
 	github.com/go-test/deep v1.0.5 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
@@ -176,7 +176,7 @@ require (
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
 	go.uber.org/zap v1.22.0
-	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
+	go4.org/intern v0.0.0-20211027215823-ae77deb06f29
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
@@ -274,7 +274,6 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
-	github.com/go-test/deep v1.0.5 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
@@ -384,7 +383,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.31.0 // indirect
 	go.opentelemetry.io/otel/trace v1.8.0 // indirect
 	go.uber.org/atomic v1.9.0
-	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
@@ -413,6 +411,7 @@ require (
 	github.com/agnivade/levenshtein v1.0.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
+	github.com/florianl/go-tc v0.2.0 // indirect
 	github.com/libp2p/go-reuseport v0.1.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
@@ -424,8 +423,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1
-	github.com/go-delve/delve v1.9.0
-	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
+	github.com/DataDog/ebpf v0.0.0-20220301203322-3fc9ab3b8daf
 )
 
 // Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)

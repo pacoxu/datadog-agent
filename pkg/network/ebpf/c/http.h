@@ -3,7 +3,7 @@
 
 #include "tracer.h"
 #include "http-types.h"
-#include "http-shared-maps.h"
+#include "http-maps.h"
 
 #include <uapi/linux/ptrace.h>
 

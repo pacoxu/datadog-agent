@@ -6,14 +6,9 @@
 #include "http-types.h"
 #include "map-defs.h"
 
-<<<<<<< variant A
-#include "http-shared-maps.h"
-
->>>>>>> variant B
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_HASH_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 1)
 
-======= end
 /* This map used for notifying userspace that a HTTP batch is ready to be consumed */
 BPF_PERF_EVENT_ARRAY_MAP(http_notifications, __u32, 0)
 
