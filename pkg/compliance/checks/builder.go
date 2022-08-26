@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -752,7 +753,7 @@ func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for process flag argument`)
 	}
-	return process.ValueFromProcessFlag(name, flag)
+	return processutils.ValueFromProcessFlag(name, flag, process.CacheValidity)
 }
 
 func (b *builder) evalValueFromFile(get file.Getter) eval.Function {

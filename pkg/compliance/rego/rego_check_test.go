@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	"github.com/stretchr/testify/mock"
@@ -23,7 +24,7 @@ type regoFixture struct {
 	module   string
 	findings string
 
-	processes     processes
+	processes     processutils.Processes
 	expectReports []*compliance.Report
 }
 
@@ -42,7 +43,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -53,8 +54,8 @@ func (f *regoFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete(processCacheKey)
-	processFetcher = func() (processes, error) {
+	cache.Cache.Delete(processutils.ProcessCacheKey)
+	processutils.ProcessFetcher = func() (processutils.Processes, error) {
 		for pid, p := range f.processes {
 			p.Pid = pid
 		}
@@ -73,7 +74,7 @@ func (f *regoFixture) run(t *testing.T) {
 	regoCheck, err := f.newRegoCheck()
 	assert.NoError(err)
 
-	reports := regoCheck.check(env)
+	reports := regoCheck.Check(env)
 	assert.Equal(f.expectReports, reports)
 }
 
@@ -114,7 +115,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
+			processes: processutils.Processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
@@ -171,7 +172,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
+			processes: processutils.Processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
@@ -219,7 +220,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
+			processes: processutils.Processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
@@ -265,7 +266,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			processes: processes{
+			processes: processutils.Processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},

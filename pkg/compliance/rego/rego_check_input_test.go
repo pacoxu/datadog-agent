@@ -14,13 +14,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/gopsutil/process"
 )
 
 type regoInputFixture struct {
 	name          string
 	inputs        []compliance.RegoInput
-	processes     processes
+	processes     map[int32]*process.FilledProcess
 	expectedInput string
 }
 
@@ -38,7 +40,7 @@ func (f *regoInputFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -49,8 +51,8 @@ func (f *regoInputFixture) run(t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 
-	cache.Cache.Delete(processCacheKey)
-	processFetcher = func() (processes, error) {
+	cache.Cache.Delete("compliance-processes")
+	processutils.ProcessFetcher = func() (processutils.Processes, error) {
 		for pid, p := range f.processes {
 			p.Pid = pid
 		}
@@ -74,7 +76,7 @@ func (f *regoInputFixture) run(t *testing.T) {
 
 	regoCheck, err := f.newRegoCheck()
 	assert.NoError(err)
-	reports := regoCheck.check(env)
+	reports := regoCheck.Check(env)
 	t.Logf("reports: %+v", reports)
 
 	content, err := os.ReadFile(tf.Name())
@@ -111,7 +113,7 @@ func TestRegoInputCheck(t *testing.T) {
 					Type:    "array",
 				},
 			},
-			processes: processes{
+			processes: processutils.Processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
