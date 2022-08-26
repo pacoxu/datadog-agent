@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
@@ -566,12 +567,9 @@ func (b *builder) nodeLabelKeys() []string {
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
-	regoCheck := &regoCheck{
-		ruleID: rule.ID,
-		inputs: rule.Inputs,
-	}
+	regoCheck := rego.NewCheck(rule)
 
-	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
+	if err := regoCheck.CompileRule(rule, ruleScope, meta); err != nil {
 		return nil, err
 	}
 
