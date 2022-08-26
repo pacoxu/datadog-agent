@@ -24,6 +24,9 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+
+	// NumMetricTypes is the number of metric types; must be the last item here
+	NumMetricTypes
 )
 
 // DistributionMetricTypes contains the MetricTypes that are used for percentiles
@@ -59,27 +62,53 @@ func (m MetricType) String() string {
 	}
 }
 
+// ToAPIType returns the equivalent of MetricType in APIMetricType type.
+// APIMetricType only supports gauges, counts and rates and will default on gauges
+// for every other inputs.
+// This is used by the no-aggregation pipeline to infer an API type from a MetricType.
+func (m MetricType) ToAPIType() APIMetricType {
+	switch m {
+	case GaugeType:
+		return APIGaugeType
+	case CounterType:
+		return APICountType
+	case RateType:
+		return APIRateType
+	default:
+		return APIGaugeType
+	}
+}
+
 // MetricSampleContext allows to access a sample context data
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(*tagset.HashingTagsAccumulator)
+
+	// GetTags extracts metric tags for context tracking.
+	//
+	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
+	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
+	// should be appended to the metricBuffer.
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator)
+
+	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
+	GetMetricType() MetricType
 }
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name            string
-	Value           float64
-	RawValue        string
-	Mtype           MetricType
-	Tags            []string
-	Host            string
-	SampleRate      float64
-	Timestamp       float64
-	FlushFirstValue bool
-	OriginID        string
-	K8sOriginID     string
-	Cardinality     string
+	Name             string
+	Value            float64
+	RawValue         string
+	Mtype            MetricType
+	Tags             []string
+	Host             string
+	SampleRate       float64
+	Timestamp        float64
+	FlushFirstValue  bool
+	OriginFromUDS    string
+	OriginFromClient string
+	Cardinality      string
 }
 
 // Implement the MetricSampleContext interface
@@ -95,9 +124,14 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(tb *tagset.HashingTagsAccumulator) {
-	tb.Append(m.Tags...)
-	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
+	metricBuffer.Append(m.Tags...)
+	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+}
+
+// GetMetricType implements MetricSampleContext#GetMetricType.
+func (m *MetricSample) GetMetricType() MetricType {
+	return m.Mtype
 }
 
 // Copy returns a deep copy of the m MetricSample

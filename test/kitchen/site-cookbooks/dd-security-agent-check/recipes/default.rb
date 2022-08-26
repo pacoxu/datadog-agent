@@ -8,8 +8,16 @@
 if node['platform_family'] != 'windows'
   wrk_dir = '/tmp/security-agent'
 
-  directory wrk_dir do
-    recursive true
+  remote_directory wrk_dir do
+    cookbook 'dd-system-probe-check'
+    source 'tests'
+    mode '755'
+    files_mode '755'
+    sensitive true
+    case
+    when !platform?('windows')
+      files_owner 'root'
+    end
   end
 
   cookbook_file "#{wrk_dir}/testsuite" do
@@ -17,18 +25,54 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  directory "/opt/datadog-agent/embedded/bin" do
+    recursive true
+  end
+
+  cookbook_file "/opt/datadog-agent/embedded/bin/clang-bpf" do
+    source "clang-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "#{wrk_dir}/clang-bpf" do
+    source "clang-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
+    source "llc-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "#{wrk_dir}/llc-bpf" do
+    source "llc-bpf"
+    mode '0744'
+    action :create
+  end
+
+  cookbook_file "#{wrk_dir}/nikos.tar.gz" do
+    source "nikos.tar.gz"
+    mode '755'
+  end
+
+  execute "Extract nikos.tar.gz" do
+    command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{wrk_dir}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
+    action :run
+  end
+
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
   swap_file '/mnt/swapfile' do
     size 2048
   end
 
-  # To uncomment when gitlab runner are able to build with GOARCH=386
-  # cookbook_file "#{wrk_dir}/testsuite32" do
-  #   source "testsuite32"
-  #   mode '755'
-  # end
-
   kernel_module 'loop' do
+    action :load
+  end
+
+  kernel_module 'veth' do
     action :load
   end
 
@@ -70,29 +114,59 @@ if node['platform_family'] != 'windows'
       end
     end
 
-    docker_image 'centos' do
-      tag '7'
-      action :pull
+    file "#{wrk_dir}/Dockerfile" do
+      content <<-EOF
+      FROM public.ecr.aws/docker/library/centos:centos7
+
+      ENV DOCKER_DD_AGENT=yes
+
+      ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
+
+      RUN mkdir -p /opt/datadog-agent/embedded/bin
+      COPY clang-bpf /opt/datadog-agent/embedded/bin/
+      COPY llc-bpf /opt/datadog-agent/embedded/bin/
+
+      RUN yum -y install xfsprogs e2fsprogs iproute
+      CMD sleep 7200
+      EOF
+      action :create
+    end
+
+    docker_image 'testsuite-img' do
+      tag 'latest'
+      source wrk_dir
+      action :build
     end
 
     docker_container 'docker-testsuite' do
-      repo 'centos'
-      tag '7'
+      repo 'testsuite-img'
+      tag 'latest'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-      command "sleep 7200"
-      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
-      env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
+      volumes [
+        # security-agent misc
+        '/tmp/security-agent:/tmp/security-agent',
+        # HOST_* paths
+        '/proc:/host/proc',
+        '/etc:/host/etc',
+        '/sys:/host/sys',
+        # os-release
+        '/etc/os-release:/host/etc/os-release',
+        '/usr/lib/os-release:/host/usr/lib/os-release',
+        # passwd and groups
+        '/etc/passwd:/etc/passwd',
+        '/etc/group:/etc/group',
+      ]
+      env [
+        'HOST_PROC=/host/proc',
+        'HOST_ETC=/host/etc',
+        'HOST_SYS=/host/sys',
+      ]
       privileged true
     end
 
     docker_exec 'debug_fs' do
       container 'docker-testsuite'
       command ['mount', '-t', 'debugfs', 'none', '/sys/kernel/debug']
-    end
-
-    docker_exec 'install_xfs' do
-      container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
     end
 
     for i in 0..7 do
@@ -103,22 +177,29 @@ if node['platform_family'] != 'windows'
     end
   end
 
-  if not platform_family?('suse') and intel? and _64_bit?
-    package 'Install i386 libc' do
-      case node[:platform]
-      when 'redhat', 'centos', 'fedora', 'oracle'
-        package_name 'glibc.i686'
-      when 'ubuntu', 'debian'
-        package_name 'libc6-i386'
-      # when 'suse'
-      #   package_name 'glibc-32bit'
-      end
-    end
-  end
-
   if platform_family?('centos', 'fedora', 'rhel')
     selinux_state "SELinux Permissive" do
       action :permissive
     end
+  end
+
+  if File.exists?('/sys/kernel/security/lockdown')
+    file '/sys/kernel/security/lockdown' do
+      action :create_if_missing
+      content "integrity"
+    end
+  end
+
+  # system-probe common
+
+  system_probe_tests_folder = '/tmp/system-probe-tests'
+
+  directory system_probe_tests_folder do
+    recursive true
+  end
+
+  file "#{system_probe_tests_folder}/color_idx" do
+    content node[:color_idx].to_s
+    mode 644
   end
 end

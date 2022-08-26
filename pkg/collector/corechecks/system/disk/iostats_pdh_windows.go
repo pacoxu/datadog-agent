@@ -2,20 +2,19 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build windows
 // +build windows
 
 package disk
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
@@ -89,28 +88,39 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, 
 	}
 
 	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
-
 	for name := range c.counternames {
-		c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
-		if err != nil {
-			return err
-		}
+		c.counters[name] = nil
 	}
+
 	return nil
 }
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	sender, err := aggregator.GetSender(c.ID())
+	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
+	// Try to initialize any nil counters
+	for name := range c.counternames {
+		if c.counters[name] == nil {
+			c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
+			if err != nil {
+				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
+			}
+		}
+	}
 	var tagbuff bytes.Buffer
 	for cname, cset := range c.counters {
+		if cset == nil {
+			// counter is not yet initialized
+			continue
+		}
+		// get counter values
 		vals, err := cset.GetAllValues()
 		if err != nil {
-			fmt.Printf("Error getting values %v\n", err)
-			return err
+			c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
+			continue
 		}
 		for inst, val := range vals {
 			if c.blacklist != nil && c.blacklist.MatchString(inst) {

@@ -17,7 +17,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
-  gomodcache = Pathname.new("/gomodcache")
+  gomodcache = Pathname.new("/modcache")
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
@@ -112,7 +112,6 @@ build do
     if windows?
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-      env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
       platform = windows_arch_i386? ? "x86" : "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 

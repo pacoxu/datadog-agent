@@ -7,8 +7,10 @@ package dogstatsd
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -20,16 +22,41 @@ var (
 	CardinalityTagPrefix = "dd.internal.card:"
 )
 
-func extractTagsMetadata(tags []string, defaultHostname string, originTags string, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
+// extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
+//
+// The following tables explain how the origins are chosen.
+// originFromUDS is the origin discovered via UDS origin detection (container ID).
+// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
+// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
+// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
+//
+//  ---------------------------------------------------------------------------------
+// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
+// |---------------|---------------|---------------------------||--------------------|
+// | any           | any           | false                     || originFromUDS      |
+// | any           | any           | true                      || empty              |
+// | any           | empty         | any                       || originFromUDS      |
+//  ---------------------------------------------------------------------------------
+//
+//  ---------------------------------------------------------------------------------
+// | originFromTag          | originFromMsg   || Result: originFromClient            |
+// |------------------------|-----------------||-------------------------------------|
+// | not empty && not none  | any             || pod prefix + originFromTag          |
+// | empty                  | empty           || empty                               |
+// | none                   | empty           || empty                               |
+// | empty                  | not empty       || container prefix + originFromMsg    |
+// | none                   | not empty       || container prefix + originFromMsg    |
+//  ---------------------------------------------------------------------------------
+func extractTagsMetadata(tags []string, defaultHostname, originFromUDS string, originFromMsg []byte, entityIDPrecedenceEnabled bool) ([]string, string, string, string, string) {
 	host := defaultHostname
 
 	n := 0
-	entityIDValue, cardinality := "", ""
+	originFromTag, cardinality := "", ""
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			entityIDValue = tag[len(entityIDTagPrefix):]
+			originFromTag = tag[len(entityIDTagPrefix):]
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
 		} else {
@@ -39,25 +66,31 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 	}
 	tags = tags[:n]
 
-	origin := ""
+	udsOrigin := ""
 	// We use the UDS socket origin if no origin ID was specify in the tags
 	// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-	if entityIDValue == "" || !entityIDPrecedenceEnabled {
+	if originFromTag == "" || !entityIDPrecedenceEnabled {
 		// Add origin tags only if the entity id tags is not provided
-		origin = originTags
+		udsOrigin = originFromUDS
 	}
 
-	k8sOrigin := ""
-	// We set k8sOriginID if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
-	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
+	// originFromClient can either be originFromTag or originFromMsg
+	originFromClient := ""
+
+	// We set originFromClient if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
+	if originFromTag != "" && originFromTag != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 
 		// currently only supported for pods
-		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
+		originFromClient = kubelet.KubePodTaggerEntityPrefix + originFromTag
+	} else if originFromTag == "" && len(originFromMsg) > 0 {
+		// originFromMsg is the container id sent by the newer clients.
+		// Opt-in is handled when parsing.
+		originFromClient = containers.BuildTaggerEntityName(string(originFromMsg))
 	}
 
-	return tags, host, origin, k8sOrigin, cardinality
+	return tags, host, udsOrigin, originFromClient, cardinality
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -98,10 +131,18 @@ func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
 	return false
 }
 
-func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
+func tsToFloatForSamples(ts time.Time) float64 {
+	if ts.IsZero() { // avoid a conversion
+		// for on-time samples, we don't want to write any value in there
+		return 0.0
+	}
+	return float64(ts.Unix())
+}
+
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
 	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, ddSample.containerID, entityIDPrecedenceEnabled)
 
 	if !isExcluded(metricName, namespace, excludedNamespaces) {
 		metricName = namespace + metricName
@@ -122,35 +163,37 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 	// we will use 'ddSample.value'and return a single MetricSample
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {
-			metricSamples = append(metricSamples,
+			dest = append(dest,
 				metrics.MetricSample{
-					Host:        hostnameFromTags,
-					Name:        metricName,
-					Tags:        tags,
-					Mtype:       mtype,
-					Value:       ddSample.values[idx],
-					SampleRate:  ddSample.sampleRate,
-					RawValue:    ddSample.setValue,
-					OriginID:    originID,
-					K8sOriginID: k8sOriginID,
-					Cardinality: cardinality,
+					Host:             hostnameFromTags,
+					Name:             metricName,
+					Tags:             tags,
+					Mtype:            mtype,
+					Value:            ddSample.values[idx],
+					SampleRate:       ddSample.sampleRate,
+					RawValue:         ddSample.setValue,
+					Timestamp:        tsToFloatForSamples(ddSample.ts),
+					OriginFromUDS:    udsOrigin,
+					OriginFromClient: clientOrigin,
+					Cardinality:      cardinality,
 				})
 		}
-		return metricSamples
+		return dest
 	}
 
 	// only one value contained, simple append it
-	return append(metricSamples, metrics.MetricSample{
-		Host:        hostnameFromTags,
-		Name:        metricName,
-		Tags:        tags,
-		Mtype:       mtype,
-		Value:       ddSample.value,
-		SampleRate:  ddSample.sampleRate,
-		RawValue:    ddSample.setValue,
-		OriginID:    originID,
-		K8sOriginID: k8sOriginID,
-		Cardinality: cardinality,
+	return append(dest, metrics.MetricSample{
+		Host:             hostnameFromTags,
+		Name:             metricName,
+		Tags:             tags,
+		Mtype:            mtype,
+		Value:            ddSample.value,
+		SampleRate:       ddSample.sampleRate,
+		RawValue:         ddSample.setValue,
+		Timestamp:        tsToFloatForSamples(ddSample.ts),
+		OriginFromUDS:    udsOrigin,
+		OriginFromClient: clientOrigin,
+		Cardinality:      cardinality,
 	})
 }
 
@@ -179,20 +222,20 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
 }
 
 func enrichEvent(event dogstatsdEvent, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.Event {
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(event.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(event.tags, defaultHostname, origin, event.containerID, entityIDPrecedenceEnabled)
 
 	enrichedEvent := &metrics.Event{
-		Title:          event.title,
-		Text:           event.text,
-		Ts:             event.timestamp,
-		Priority:       enrichEventPriority(event.priority),
-		Tags:           tags,
-		AlertType:      enrichEventAlertType(event.alertType),
-		AggregationKey: event.aggregationKey,
-		SourceTypeName: event.sourceType,
-		OriginID:       originID,
-		K8sOriginID:    k8sOriginID,
-		Cardinality:    cardinality,
+		Title:            event.title,
+		Text:             event.text,
+		Ts:               event.timestamp,
+		Priority:         enrichEventPriority(event.priority),
+		Tags:             tags,
+		AlertType:        enrichEventAlertType(event.alertType),
+		AggregationKey:   event.aggregationKey,
+		SourceTypeName:   event.sourceType,
+		OriginFromUDS:    udsOrigin,
+		OriginFromClient: clientOrigin,
+		Cardinality:      cardinality,
 	}
 
 	if len(event.hostname) != 0 {
@@ -218,17 +261,17 @@ func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckSta
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, defaultHostname string, origin string, entityIDPrecedenceEnabled bool) *metrics.ServiceCheck {
-	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(serviceCheck.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(serviceCheck.tags, defaultHostname, origin, serviceCheck.containerID, entityIDPrecedenceEnabled)
 
 	enrichedServiceCheck := &metrics.ServiceCheck{
-		CheckName:   serviceCheck.name,
-		Ts:          serviceCheck.timestamp,
-		Status:      enrichServiceCheckStatus(serviceCheck.status),
-		Message:     serviceCheck.message,
-		Tags:        tags,
-		OriginID:    originID,
-		K8sOriginID: k8sOriginID,
-		Cardinality: cardinality,
+		CheckName:        serviceCheck.name,
+		Ts:               serviceCheck.timestamp,
+		Status:           enrichServiceCheckStatus(serviceCheck.status),
+		Message:          serviceCheck.message,
+		Tags:             tags,
+		OriginFromUDS:    udsOrigin,
+		OriginFromClient: clientOrigin,
+		Cardinality:      cardinality,
 	}
 
 	if len(serviceCheck.hostname) != 0 {
