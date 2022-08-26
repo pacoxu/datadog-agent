@@ -4,4 +4,4 @@
 
 package runtime
 
-var GoTls = NewRuntimeAsset("go-tls.c", "eabeda0034c88551ba35bb617fc210a8e815ee38aa90d1535076314a33028692")
+var GoTls = NewRuntimeAsset("go-tls.c", "386a095f6100cec2eb2a45164f6a3cb21af703898c85fa882ba868ff01cfd248")
