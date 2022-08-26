@@ -26,13 +26,13 @@ static __always_inline int read_goroutine_id_from_tls(goroutine_id_metadata_t* m
     uintptr_t g_addr;
     if (bpf_probe_read(&g_addr, sizeof(uintptr_t), get_tls_base(task) + m->runtime_g_tls_addr_offset)) {
         return 1;
-	}
-	void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
-	if (bpf_probe_read(dest, sizeof(int64_t), goroutine_id_ptr)) {
+    }
+    void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
+    if (bpf_probe_read(dest, sizeof(int64_t), goroutine_id_ptr)) {
         return 1;
-	}
+    }
 
-	return 0;
+    return 0;
 }
 
 static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
@@ -54,11 +54,11 @@ static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, 
 }
 
 static __always_inline int read_goroutine_id(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
-	if (m->runtime_g_in_register) {
-		return read_goroutine_id_from_register(ctx, m, dest);
-	} else {
-		return read_goroutine_id_from_tls(m, dest);
-	}
+    if (m->runtime_g_in_register) {
+        return read_goroutine_id_from_register(ctx, m, dest);
+    } else {
+        return read_goroutine_id_from_tls(m, dest);
+    }
 }
 
 #endif //__GO_TLS_GOID_H
