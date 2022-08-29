@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
 	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
+	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -94,7 +95,7 @@ func WithHostRootMount(hostRootMount string) BuilderOption {
 			hostRootMount = "/"
 		}
 		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
-		b.pathMapper = file.NewPathMapper(
+		b.pathMapper = fileutils.NewPathMapper(
 			hostRootMount,
 		)
 		return nil
@@ -303,7 +304,7 @@ type builder struct {
 	valueCache *cache.Cache
 
 	hostname     string
-	pathMapper   *file.PathMapper
+	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
 	nodeLabels   map[string]string
 
@@ -672,8 +673,8 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
 			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
-			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(file.JSONGetter)),
-			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(file.YAMLGetter)),
+			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(fileutils.JSONGetter)),
+			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(fileutils.YAMLGetter)),
 		},
 		nil,
 	)
@@ -756,7 +757,7 @@ func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	return processutils.ValueFromProcessFlag(name, flag, process.CacheValidity)
 }
 
-func (b *builder) evalValueFromFile(get file.Getter) eval.Function {
+func (b *builder) evalValueFromFile(get fileutils.Getter) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
