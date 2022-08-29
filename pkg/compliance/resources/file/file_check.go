@@ -236,3 +236,7 @@ func QueryValueFromFile(filePath string, query string, get fileutils.Getter) (st
 
 	return get(data, query)
 }
+
+func init() {
+	resources.RegisterHandler("file", Resolve, ReportedFields)
+}
