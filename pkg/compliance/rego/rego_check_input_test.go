@@ -52,7 +52,7 @@ func (f *regoInputFixture) run(t *testing.T) {
 	assert := assert.New(t)
 
 	cache.Cache.Delete("compliance-processes")
-	processutils.ProcessFetcher = func() (processutils.Processes, error) {
+	processutils.Fetcher = func() (processutils.Processes, error) {
 		for pid, p := range f.processes {
 			p.Pid = pid
 		}
