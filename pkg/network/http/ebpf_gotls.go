@@ -10,14 +10,20 @@ package http
 
 import (
 	"debug/elf"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
+	"syscall"
+
+	"github.com/cilium/ebpf"
+	"github.com/vishvananda/netlink"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/http/gotls/lookup"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,8 +100,16 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 }
 
 type GoTLSProgram struct {
-	manager  *errtelemetry.Manager
-	probeIDs []manager.ProbeIdentificationPair
+	manager     *errtelemetry.Manager
+	probeIDs    []manager.ProbeIdentificationPair
+	procRoot    string
+	procMonitor struct {
+		done   chan struct{}
+		events chan netlink.ProcEvent
+		errors chan error
+	}
+	offsetsDataMap *ebpf.Map
+	inspected      map[uint64]*bininspect.Result
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -109,7 +123,16 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
 		return nil
 	}
-	return &GoTLSProgram{}
+	p := &GoTLSProgram{
+		procRoot:  c.ProcRoot,
+		inspected: make(map[uint64]*bininspect.Result),
+	}
+
+	p.procMonitor.done = make(chan struct{})
+	p.procMonitor.events = make(chan netlink.ProcEvent, 10)
+	p.procMonitor.errors = make(chan error, 1)
+
+	return p
 }
 
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
@@ -132,12 +155,42 @@ func (p *GoTLSProgram) Start() {
 	if p == nil {
 		return
 	}
-	// In the future Start() should just initiate the new processes listener
-	// and this implementation should be done for each new process found.
-	binPath := os.Getenv("GO_TLS_TEST")
-	if binPath != "" {
-		p.handleNewBinary(binPath)
+
+	var err error
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
+	if err != nil {
+		log.Errorf(" could not get offsets_data map: %w", err)
 	}
+
+	if err := netlink.ProcEventMonitor(p.procMonitor.events, p.procMonitor.done, p.procMonitor.errors); err != nil {
+		log.Errorf(" could not create process monitor: %w", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-p.procMonitor.done:
+				return
+
+			case event, ok := <-p.procMonitor.events:
+				if !ok {
+					return
+				}
+
+				switch ev := event.Msg.(type) {
+				case *netlink.ExecProcEvent:
+					p.handleNewBinary(ev.ProcessPid)
+				}
+
+			case err, ok := <-p.procMonitor.errors:
+				if !ok {
+					return
+				}
+
+				log.Errorf(" process watcher error: %w", err)
+			}
+		}
+	}()
 }
 
 func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
@@ -158,30 +211,51 @@ func supportedArch(arch string) bool {
 	return arch == string(bininspect.GoArchX86_64)
 }
 
-func (p *GoTLSProgram) handleNewBinary(binPath string) {
-	f, err := os.Open(binPath)
+func (p *GoTLSProgram) handleNewBinary(pid uint32) {
+	log.Debugf("New process with PID: %v", pid)
+
+	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+	binPath, err := os.Readlink(exePath)
 	if err != nil {
-		log.Errorf("Could not open file %q due to %s", binPath, err)
-		return
-	}
-	defer f.Close()
-	elfFile, err := elf.NewFile(f)
-	if err != nil {
-		log.Errorf("File %q could not be parsed as elf: %s", binPath, err)
+		log.Errorf(" could not read binary path for pid %d: %s", pid, err)
 		return
 	}
 
-	result, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
-	if err != nil {
-		log.Errorf("Failed inspecting binary %q: %s", binPath, err)
+	var stat syscall.Stat_t
+	if err = syscall.Stat(binPath, &stat); err != nil {
+		log.Errorf("could not stat binary path %s: %w", binPath, err)
 		return
 	}
 
-	// result and bin path are being passed as parameters as a preparation for the future when we will have a process
-	// watcher, so we will run on more than one binary in one goTLSProgram.
-	if err := p.addInspectionResultToMap(result, binPath); err != nil {
-		log.Errorf("error in adding inspection result to map: %s", err)
-		return
+	result, ok := p.inspected[stat.Ino]
+	if !ok {
+		f, err := os.Open(binPath)
+		if err != nil {
+			log.Errorf("could not open file %s, %w", binPath, err)
+			return
+		}
+		defer f.Close()
+
+		elfFile, err := elf.NewFile(f)
+		if err != nil {
+			log.Errorf("file %s could not be parsed as an ELF file: %w", binPath, err)
+			return
+		}
+
+		result, err = bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
+		if err != nil {
+			if !errors.Is(err, binversion.ErrNotGoExe) {
+				log.Errorf("error reading exe: %s", err)
+			}
+			return
+		}
+
+		if err = p.addInspectionResultToMap(result, stat.Ino); err != nil {
+			log.Error(err)
+			return
+		}
+
+		p.inspected[stat.Ino] = result
 	}
 
 	if err := p.attachHooks(result, binPath); err != nil {
@@ -193,33 +267,17 @@ func (p *GoTLSProgram) handleNewBinary(binPath string) {
 // addInspectionResultToMap runs a binary inspection and adds the result to the map that's being read by the probes.
 // It assumed the given path is from /proc dir and gets the pid from the path. It will fail otherwise.
 // This assumption is temporary and we'll be removed once this code works in a process watcher.
-func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binPath string) error {
-	probeData, err := inspectionResultToProbeData(result)
+func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, ino uint64) error {
+	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
 	}
 
-	dataMap, _, err := p.manager.GetMap(offsetsDataMap)
+	err = p.offsetsDataMap.Put(ino, offsetsData)
 	if err != nil {
-		return fmt.Errorf("%q map not found: %w", offsetsDataMap, err)
+		return fmt.Errorf("could not write binary inspection result to map for ino %d: %w", ino, err)
 	}
 
-	// Map key is the pid, so it will be identified in the probe as the relevant data
-	splitPath := strings.Split(binPath, "/")
-	if len(splitPath) != 4 {
-		// parts should be "", "proc", "<pid>", "exe"
-		return fmt.Errorf("got an unexpected path format: %q, expected /proc/<pid>/exe", binPath)
-	}
-	// This assumption is temporary, until we'll have a process watcher
-	pidStr := splitPath[2]
-	pid, err := strconv.ParseInt(pidStr, 10, 32)
-	if err != nil {
-		return fmt.Errorf("failed extracting pid number for binary %q: %w", binPath, err)
-	}
-	err = dataMap.Put(uint32(pid), probeData)
-	if err != nil {
-		return fmt.Errorf("failed writing binary inspection result to map for binary %q: %w", binPath, err)
-	}
 	return nil
 }
 
@@ -286,9 +344,8 @@ func (p *GoTLSProgram) Stop() {
 	if p == nil {
 		return
 	}
-	// In the future, this should stop the new process listener.
-	p.detachHooks()
 
+	close(p.procMonitor.done)
 }
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
