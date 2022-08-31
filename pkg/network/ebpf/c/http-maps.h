@@ -31,7 +31,7 @@ BPF_HASH_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 
 BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 1024)
 
-BPF_HASH_MAP(probe_data, __u32, tls_probe_data_t, 1024)
+BPF_LRU_MAP(probe_data, __u64, tls_probe_data_t, 1024)
 
 BPF_HASH_MAP(read_partial_calls, read_partial_call_key_t, read_partial_call_data_t, 1024)
 
