@@ -586,9 +586,6 @@ void __attribute__((always_inline)) parse_args_envs_seq(struct pt_regs *ctx, str
     const char *args_start = args_envs->args_start;
     int offset = args_envs->offset;
     int str_count = args_envs->str_count;
-    if (str_count >= 255) {
-        return;
-    }
     int str_total = args_envs->argc + args_envs->envc;
 
     args_envs_info->truncated = 0;
@@ -643,7 +640,6 @@ void __attribute__((always_inline)) parse_args_envs_seq(struct pt_regs *ctx, str
                 break;
             }
         } else {
-            str_count = 255; // stop here
             break;
         }
     }
