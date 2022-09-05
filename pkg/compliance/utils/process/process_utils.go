@@ -16,22 +16,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Processes holds process info indexed per PID
 type Processes map[int32]*process.FilledProcess
 
 const (
+	// ProcessCacheKey is the global cache key to use for compliance processes
 	ProcessCacheKey string = "compliance-processes"
 )
 
 var (
+	// Fetcher is a singleton function to fetch the active processes
 	Fetcher = fetchProcesses
 )
 
+// FindProcessesByName returned the list of processes with the specified name
 func (p Processes) FindProcessesByName(name string) []*process.FilledProcess {
 	return p.FindProcesses(func(process *process.FilledProcess) bool {
 		return process.Name == name
 	})
 }
 
+// FindProcesses returned the list of processes matching a specific function
 func (p Processes) FindProcesses(matchFunc func(*process.FilledProcess) bool) []*process.FilledProcess {
 	var results = make([]*process.FilledProcess, 0)
 	for _, process := range p {
@@ -47,6 +52,7 @@ func fetchProcesses() (Processes, error) {
 	return process.AllProcesses()
 }
 
+// GetProcesses returns all the processes in cache that do not exceed a specified duration
 func GetProcesses(maxAge time.Duration) (Processes, error) {
 	if value, found := cache.Cache.Get(ProcessCacheKey); found {
 		return value.(Processes), nil
@@ -62,6 +68,7 @@ func GetProcesses(maxAge time.Duration) (Processes, error) {
 	return rawProcesses, nil
 }
 
+// ParseProcessCmdLine parses command lines arguments into a map of flags and options.
 // Parsing is far from being exhaustive, however for now it works sufficiently well
 // for standard flag style command args.
 func ParseProcessCmdLine(args []string) map[string]string {
@@ -91,6 +98,7 @@ func ParseProcessCmdLine(args []string) map[string]string {
 	return results
 }
 
+// ValueFromProcessFlag returns the first process with the specified name and flag
 func ValueFromProcessFlag(name string, flag string, cacheValidity time.Duration) (interface{}, error) {
 	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
 
