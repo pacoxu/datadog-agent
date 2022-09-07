@@ -35,6 +35,13 @@ const regoEvaluator = "rego"
 const regoParseTimeout = 20 * time.Second
 const regoEvalTimeout = 20 * time.Second
 
+const defaultRegoHeader = `package datadog
+
+import data.datadog as dd
+import data.helpers as h
+import future.keywords.if
+`
+
 var (
 	// ErrResourceKindNotSupported is returned in case resource kind is not supported by evaluator
 	ErrResourceKindNotSupported = errors.New("resource kind not supported")
@@ -166,13 +173,7 @@ func computeRuleTransform(rule *compliance.RegoRule, res compliance.RegoInput, m
 
 	input := res.Transform
 	if !strings.HasSuffix(input, "package ") {
-		input = `package datadog
-				
-		import data.datadog as dd
-		import data.helpers as h
-		import future.keywords.if
-
-		` + string(res.Kind()) + " := " + res.Transform
+		input = defaultRegoHeader + string(res.Kind()) + " := " + res.Transform
 	}
 
 	mod, err := ast.ParseModule(fmt.Sprintf("__gen__rule_%s_transform.rego", rule.ID), input)
@@ -332,9 +333,10 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		case nil:
 			switch inputType {
 			case "array":
-				addArrayInput(tagName, nil)
+				if err := addArrayInput(tagName, nil); err != nil {
+					return nil, err
+				}
 			case "object":
-				// objectsPerTags[tagName] = &struct{}{}
 				addObjectInput(tagName, &struct{}{})
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
@@ -342,9 +344,10 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		case resources.ResolvedInstance:
 			switch inputType {
 			case "array":
-				addArrayInput(tagName, res.RegoInput())
+				if err := addArrayInput(tagName, res.RegoInput()); err != nil {
+					return nil, err
+				}
 			case "object":
-				// objectsPerTags[tagName] = res.RegoInput()
 				addObjectInput(tagName, res.RegoInput())
 			default:
 				return nil, fmt.Errorf("internal error, wrong input type `%s`", inputType)
@@ -354,7 +357,6 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			// this is useful if the iterator is empty for example, as it will ensure we at least
 			// export an empty array to the rego input
 			if _, present := input[tagName]; !present && inputType == "array" {
-				// arraysPerTags[tagName] = []interface{}{}
 				input[tagName] = []interface{}{}
 			}
 
@@ -368,7 +370,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				}
 
 				if inputType == "array" {
-					addArrayInput(tagName, instance.RegoInput())
+					if err := addArrayInput(tagName, instance.RegoInput()); err != nil {
+						return nil, err
+					}
 				}
 			}
 
@@ -390,17 +394,6 @@ func extractTagName(input *compliance.RegoInput) string {
 		return string(input.Kind())
 	}
 	return tagName
-}
-
-func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
-	vars, exists := input[key]
-	if !exists {
-		vars = []interface{}{}
-	}
-
-	if instance != nil {
-		input[key] = append(vars, instance.RegoInput())
-	}
 }
 
 func buildMappedInputs(inputs []regoInput) map[string]compliance.RegoInput {
