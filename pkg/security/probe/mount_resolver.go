@@ -397,6 +397,16 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
+func (mr *MountResolver) GetMountPointFullPath(mountID uint32) string {
+	if mountID == 0 {
+		return ""
+	}
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	return mr.getParentPath(mountID)
+}
+
 func getMountIDOffset(probe *Probe) uint64 {
 	offset := uint64(284)
 

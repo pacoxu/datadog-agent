@@ -394,8 +394,9 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	// Notes: bytes 36 to 40 are used to pad the structure
 
-	SliceToArray(data[40:56], unsafe.Pointer(&e.FSTypeRaw))
-	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
+	var fsTypeRaw [16]byte
+	SliceToArray(data[40:56], unsafe.Pointer(&fsTypeRaw))
+	e.FSType, err = UnmarshalString(fsTypeRaw[:], 16)
 	if err != nil {
 		return 0, err
 	}
