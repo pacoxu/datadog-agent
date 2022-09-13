@@ -25,6 +25,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -261,7 +262,7 @@ func TestMountSnapshot(t *testing.T) {
 
 	mountResolver := test.probe.GetResolvers().MountResolver
 
-	mounts, err := kernel.ParseMountInfoFile(int32(os.Getpid()))
+	mounts, err := kernel.ParseMountInfoFile(utils.Getpid())
 	if err != nil {
 		t.Fatal(err)
 	}
