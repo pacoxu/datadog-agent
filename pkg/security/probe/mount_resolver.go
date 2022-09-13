@@ -397,7 +397,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
-func (mr *MountResolver) GetMountPointFullPath(mountID uint32) string {
+func (mr *MountResolver) GetMountFullPath(mountID uint32) string {
 	if mountID == 0 {
 		return ""
 	}
