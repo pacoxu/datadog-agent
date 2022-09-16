@@ -190,6 +190,14 @@ func (m *Module) Start() error {
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
+	ruleFilterModel, err := NewRuleFilterModel()
+	if err != nil {
+		seclog.Errorf("failed to create rule filter model: %v", err)
+	}
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+	macroFilters = append(macroFilters, seclRuleFilter)
+	ruleFilters = append(ruleFilters, seclRuleFilter)
+
 	m.policyOpts = rules.PolicyLoaderOpts{
 		MacroFilters: macroFilters,
 		RuleFilters:  ruleFilters,

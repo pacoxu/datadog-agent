@@ -50,8 +50,6 @@ func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []M
 		Version: def.Version,
 	}
 
-	var skipped []*RuleDefinition
-
 MACROS:
 	for _, macroDef := range def.Macros {
 		for _, filter := range macroFilters {
@@ -81,13 +79,9 @@ RULES:
 		for _, filter := range ruleFilters {
 			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
 			if err != nil {
-				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleAgentVersion})
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
 			}
 			if !isRuleAccepted {
-				// report only agent version filtering
-				if _, ok := filter.(*AgentVersionFilter); ok {
-					skipped = append(skipped, ruleDef)
-				}
 				continue RULES
 			}
 		}
@@ -107,19 +101,6 @@ RULES:
 		}
 
 		policy.AddRule(ruleDef)
-	}
-
-LOOP:
-	for _, s := range skipped {
-		for _, r := range policy.Rules {
-			if s.ID == r.ID {
-				continue LOOP
-			}
-		}
-		// set the policy so that when we parse the errors we can get the policy associated
-		s.Policy = policy
-
-		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s, Err: ErrRuleAgentVersion})
 	}
 
 	return policy, errs.ErrorOrNil()
