@@ -696,6 +696,7 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=Non
 
 def get_ebpf_targets():
     files = glob.glob("pkg/ebpf/c/*.[c,h]")
+    files.remove("pkg/ebpf/c/bpf_helpers.h")
     files.extend(glob.glob("pkg/network/ebpf/c/**/*.[c,h]", recursive=True))
     files.extend(glob.glob("pkg/security/ebpf/c/**/*.[c,h]", recursive=True))
     return files

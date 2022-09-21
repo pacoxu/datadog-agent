@@ -1,10 +1,9 @@
 #ifndef _MAP_DEFS_H_
 #define _MAP_DEFS_H_
 
+#include <linux/version.h>
+#include <uapi/linux/bpf.h>
 #include "bpf_helpers.h"
-
-#define __uint(name, val) int (*name)[val]
-#define __type(name, val) typeof(val) *name
 
 #define BPF_MAP(_name, _type, _key_type, _value_type, _max_entries, _pin) \
     struct {                                                        \

@@ -1,11 +1,6 @@
+#include <linux/version.h>
+#include <uapi/linux/bpf.h>
 #include "bpf_helpers.h"
-
-#define bpf_printk(fmt, ...)                       \
-    ({                                             \
-        char ____fmt[] = fmt;                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), \
-            ##__VA_ARGS__);                        \
-    })
 
 struct bpf_map_def SEC("maps/cache") cache = {
     .type = BPF_MAP_TYPE_HASH,

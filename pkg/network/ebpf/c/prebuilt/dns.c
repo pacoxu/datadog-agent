@@ -1,3 +1,5 @@
+#include <linux/version.h>
+#include <uapi/linux/bpf.h>
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "ip.h"

@@ -1,12 +1,14 @@
 #include "kconfig.h"
-#include "tracer.h"
+#include <linux/version.h>
+#include <uapi/linux/bpf.h>
+#include "bpf_tracing.h"
+#include "bpf_endian.h"
 
+#include "tracer.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
-#include "bpf_helpers.h"
-#include "bpf_endian.h"
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"

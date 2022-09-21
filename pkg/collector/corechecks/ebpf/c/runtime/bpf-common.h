@@ -1,7 +1,7 @@
 #ifndef BPF_COMMON_H
 #define BPF_COMMON_H
 
-#include <linux/bpf.h>
+#include <uapi/linux/bpf.h>
 #include <linux/cgroup.h>
 
 static __always_inline int get_cgroup_name(char *buf, size_t sz) {

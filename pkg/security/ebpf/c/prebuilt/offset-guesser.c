@@ -4,9 +4,8 @@
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
-#include <linux/bpf.h>
-
-#include "bpf_helpers.h"
+#include <uapi/linux/bpf.h>
+#include "bpf_tracing.h"
 #include "constants.h"
 #include "offset.h"
 

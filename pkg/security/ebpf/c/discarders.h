@@ -16,8 +16,6 @@ struct bpf_map_def SEC("maps/discarder_stats_fb") discarder_stats_fb = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct discarder_stats_t),
     .max_entries = EVENT_LAST_DISCARDER,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/discarder_stats_bb") discarder_stats_bb = {
@@ -25,8 +23,6 @@ struct bpf_map_def SEC("maps/discarder_stats_bb") discarder_stats_bb = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct discarder_stats_t),
     .max_entries = EVENT_LAST_DISCARDER,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
@@ -34,8 +30,6 @@ struct bpf_map_def SEC("maps/discarder_revisions") discarder_revisions = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = REVISION_ARRAY_SIZE,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
@@ -181,8 +175,6 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
     .key_size = sizeof(struct inode_discarder_t),
     .value_size = sizeof(struct inode_discarder_params_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
@@ -323,8 +315,6 @@ struct bpf_map_def SEC("maps/pid_discarders") pid_discarders = { \
     .key_size = sizeof(u32),
     .value_size = sizeof(struct pid_discarder_params_t),
     .max_entries = 512,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 timeout) {

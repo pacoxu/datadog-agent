@@ -4,7 +4,7 @@
 #include <linux/ptrace.h>
 #include <linux/types.h>
 #include <linux/version.h>
-#include <linux/bpf.h>
+#include <uapi/linux/bpf.h>
 #include <linux/filter.h>
 #include <uapi/asm-generic/mman-common.h>
 #include <linux/pipe_fs_i.h>

@@ -19,7 +19,7 @@ import (
 func TestPreprocessFile(t *testing.T) {
 	testBPFDir := t.TempDir()
 
-	assetSource := `#include <linux/bpf.h>
+	assetSource := `#include <uapi/linux/bpf.h>
 #include <linux/tcp.h>
 #include <linux/oom.h>
 
