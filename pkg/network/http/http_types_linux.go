@@ -12,7 +12,8 @@ type httpConnTuple struct {
 	Dport    uint16
 	Netns    uint32
 	Pid      uint32
-	Metadata uint32
+	Metadata uint16
+	Protocol uint16
 }
 type httpBatchState struct {
 	Idx      uint64

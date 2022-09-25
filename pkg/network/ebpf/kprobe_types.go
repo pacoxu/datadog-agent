@@ -9,12 +9,21 @@
 package ebpf
 
 /*
+#include "./c/protocol-classification-defs.h"
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
 #include "./c/tags-types.h"
 #include "./c/prebuilt/offset-guess.h"
 */
 import "C"
+
+type ProtocolEnum uint16
+
+const (
+	ProtocolUnknown ProtocolEnum = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP                 = C.PROTOCOL_HTTP
+	ProtocolHTTP2                = C.PROTOCOL_HTTP2
+)
 
 type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t

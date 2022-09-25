@@ -340,14 +340,14 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Daddr_l, t.removeTuple.Daddr_h = util.ToLowHigh(conn.Dest)
 
 	if conn.Family == network.AFINET6 {
-		t.removeTuple.Metadata = uint32(netebpf.IPv6)
+		t.removeTuple.Metadata = uint16(netebpf.IPv6)
 	} else {
-		t.removeTuple.Metadata = uint32(netebpf.IPv4)
+		t.removeTuple.Metadata = uint16(netebpf.IPv4)
 	}
 	if conn.Type == network.TCP {
-		t.removeTuple.Metadata |= uint32(netebpf.TCP)
+		t.removeTuple.Metadata |= uint16(netebpf.TCP)
 	} else {
-		t.removeTuple.Metadata |= uint32(netebpf.UDP)
+		t.removeTuple.Metadata |= uint16(netebpf.UDP)
 	}
 
 	err := t.conns.Delete(unsafe.Pointer(t.removeTuple))

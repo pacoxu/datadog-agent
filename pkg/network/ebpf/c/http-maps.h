@@ -39,12 +39,6 @@ BPF_LRU_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 
 BPF_LRU_MAP(open_at_args, __u64, lib_path_t, 1024)
 
-/* Map used to store the sub program actually used by the socket filter.
- * This is done to avoid memory limitation when attaching a filter to
- * a socket.
- * See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Program-size-limit-for-socket-filters */
-BPF_PROG_ARRAY(http_progs, 1)
-
 /* This map used for notifying userspace of a shared library being loaded */
 BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32, 0)
 

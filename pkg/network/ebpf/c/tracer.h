@@ -3,6 +3,8 @@
 
 #include <linux/types.h>
 
+#include "protocol-classification-defs.h"
+
 #define bool _Bool
 #define true 1
 #define false 0
@@ -68,7 +70,8 @@ typedef struct {
     // Metadata description:
     // First bit indicates if the connection is TCP (1) or UDP (0)
     // Second bit indicates if the connection is V6 (1) or V4 (0)
-    __u32 metadata; // This is that big because it seems that we atleast need a 32-bit aligned struct
+    __u16 metadata; // This is that big because it seems that we at least need a 32-bit aligned struct
+    __u16 protocol;
 } conn_tuple_t;
 
 typedef struct {

@@ -10,19 +10,61 @@
 #include "tags-types.h"
 #include "sock.h"
 #include "port_range.h"
+#include "protocol-classification-maps.h"
+#include "protocol-classification-helpers.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/http_filter_entry")
-int socket__http_filter_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+// The entrypoint for all packets.
+SEC("socket/protocol_dispatcher")
+int socket__protocol_dispatcher(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t tup = {0};
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &tup)) {
+        return 0;
+    }
+
+    if (!should_process_packet(skb, &skb_info, &tup)) {
+        return 0;
+    }
+
+     char request_fragment[HTTP_BUFFER_SIZE];
+    __builtin_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_skb((char *)request_fragment, skb, &skb_info);
+
+    connection_state_t empty_connection_state = {0};
+    connection_state_t *connection_state = bpf_map_lookup_elem(&connection_states, &tup);
+    if (connection_state == NULL) {
+        connection_state = &empty_connection_state;
+    }
+
+    if (has_sequence_seen_before(connection_state, &skb_info)) {
+        return 0;
+    }
+
+    // detect protocol
+    infer_protocol(connection_state, request_fragment, sizeof(request_fragment));
+
+    // Update the state.
+    bpf_map_update_elem(&connection_states, &tup, connection_state, BPF_ANY);
+
+    if (connection_state->protocol == PROTOCOL_UNKNOWN) {
+        log_debug("[protocol dispatcher]: Unknown protocol, payload not identified\n");
+        return 0;
+    }
+
+    log_debug("[protocol dispatcher]: Calling protocol: %d\n", connection_state->protocol);
+    // dispatch if possible
+    bpf_tail_call_compat(skb, &protocols_progs, connection_state->protocol);
+
     return 0;
 }
 
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
+    log_debug("[protocol dispatcher]: HTTP called\n");
+
     skb_info_t skb_info;
     http_transaction_t http;
     __builtin_memset(&http, 0, sizeof(http));

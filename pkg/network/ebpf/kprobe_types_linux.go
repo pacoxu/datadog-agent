@@ -3,6 +3,14 @@
 
 package ebpf
 
+type ProtocolEnum uint16
+
+const (
+	ProtocolUnknown ProtocolEnum = 0x0
+	ProtocolHTTP                 = 0x1
+	ProtocolHTTP2                = 0x2
+)
+
 type ConnTuple struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -12,7 +20,8 @@ type ConnTuple struct {
 	Dport    uint16
 	Netns    uint32
 	Pid      uint32
-	Metadata uint32
+	Metadata uint16
+	Protocol uint16
 }
 type TCPStats struct {
 	Retransmits       uint32

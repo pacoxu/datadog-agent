@@ -290,6 +290,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	// TODO: Add protocol
 }
 
 // Via has info about the routing decision for a flow
