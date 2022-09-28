@@ -37,7 +37,7 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -220,7 +220,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -395,7 +395,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
