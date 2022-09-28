@@ -170,6 +170,14 @@ func (c *complianceCheck) Run() error {
 			ExpireAt:         c.computeExpireAt(),
 		}
 
+		if data != nil {
+			if ruleID, found := data["agent_rule_id"]; found {
+				if ruleID, ok := ruleID.(string); ok {
+					e.AgentRuleID = ruleID
+				}
+			}
+		}
+
 		log.Debugf("%s: reporting [%s] [%s] [%s]", c.ruleID, e.Result, e.ResourceID, e.ResourceType)
 
 		c.Reporter().Report(e)
