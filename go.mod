@@ -416,6 +416,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.36.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.36.1
 	github.com/go-delve/delve v1.9.0
+	github.com/gocomply/scap v0.1.1
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 )
 
