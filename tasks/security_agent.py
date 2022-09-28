@@ -61,11 +61,12 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
+    static=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -112,6 +113,8 @@ def build(
     build_tags = get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
+    if static:
+        build_tags.extend(["osusergo", "netgo"])
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
