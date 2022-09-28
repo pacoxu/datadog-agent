@@ -43,6 +43,7 @@ type Agent struct {
 
 // New creates a new instance of Agent
 func New(reporter event.Reporter, scheduler Scheduler, configDir string, endpoints *config.Endpoints, options ...checks.BuilderOption) (*Agent, error) {
+	options = append([]checks.BuilderOption{checks.WithComplianceDir(configDir)}, options...)
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,
@@ -67,6 +68,7 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, endpoin
 
 // RunChecks runs checks right away without scheduling
 func RunChecks(reporter event.Reporter, configDir string, options ...checks.BuilderOption) error {
+	options = append([]checks.BuilderOption{checks.WithComplianceDir(configDir)}, options...)
 	builder, err := checks.NewBuilder(
 		reporter,
 		options...,

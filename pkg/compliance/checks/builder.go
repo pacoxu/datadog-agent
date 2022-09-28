@@ -140,6 +140,14 @@ func WithAuditClient(cli env.AuditClient) BuilderOption {
 	}
 }
 
+// WithComplianceDir configures compliance benchmarks location
+func WithComplianceDir(dir string) BuilderOption {
+	return func(b *builder) error {
+		b.complianceDir = dir
+		return nil
+	}
+}
+
 type kubeClient struct {
 	dynamic.Interface
 	clusterID string
@@ -303,10 +311,11 @@ type builder struct {
 	reporter   event.Reporter
 	valueCache *cache.Cache
 
-	hostname     string
-	pathMapper   *fileutils.PathMapper
-	etcGroupPath string
-	nodeLabels   map[string]string
+	hostname      string
+	pathMapper    *fileutils.PathMapper
+	etcGroupPath  string
+	nodeLabels    map[string]string
+	complianceDir string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -664,6 +673,10 @@ func (b *builder) IsLeader() bool {
 
 func (b *builder) NodeLabels() map[string]string {
 	return b.nodeLabels
+}
+
+func (b *builder) ComplianceDir() string {
+	return b.complianceDir
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {

@@ -89,6 +89,7 @@ func processFlag(flagValues map[string]string) eval.Function {
 		return value, nil
 	}
 }
+
 func processHasFlag(flagValues map[string]string) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		flag, err := validateProcessFlagArg(args...)
