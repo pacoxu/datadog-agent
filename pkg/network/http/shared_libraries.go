@@ -73,8 +73,8 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 		rules:      rules,
 		loadEvents: perfHandler,
 		registry: &soRegistry{
-			byPath:  make(map[string]*soRegistration),
-			byInode: make(map[uint64]*soRegistration),
+			byPath: make(map[string]*soRegistration),
+			byID:   make(map[pathIdentifier]*soRegistration),
 		},
 	}
 }
@@ -186,15 +186,37 @@ func (w *soWatcher) canonicalizePath(path string) string {
 	return followSymlink(path)
 }
 
+type pathIdentifier struct {
+	dev   uint64
+	inode uint64
+}
+
+func newPathIdentifier(path string) (pi pathIdentifier, err error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return pi, err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return pi, fmt.Errorf("invalid file stat")
+	}
+
+	return pathIdentifier{
+		dev:   stat.Dev,
+		inode: stat.Ino,
+	}, nil
+}
+
 type soRegistration struct {
-	inode        uint64
+	pathID       pathIdentifier
 	refcount     int
 	unregisterCB func(string) error
 }
 
 type soRegistry struct {
-	byPath  map[string]*soRegistration
-	byInode map[uint64]*soRegistration
+	byPath map[string]*soRegistration
+	byID   map[pathIdentifier]*soRegistration
 }
 
 func (r *soRegistry) register(libPath string, rule soRule) {
@@ -202,12 +224,12 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 		return
 	}
 
-	inode, err := getInode(libPath)
+	pathID, err := newPathIdentifier(libPath)
 	if err != nil {
 		return
 	}
 
-	if registration, ok := r.byInode[inode]; ok {
+	if registration, ok := r.byID[pathID]; ok {
 		registration.refcount++
 		r.byPath[libPath] = registration
 		log.Debugf("registering library=%s", libPath)
@@ -223,16 +245,16 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 
 		// save sentinel value so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
-		registration := newRegistration(inode, nil)
+		registration := newRegistration(pathID, nil)
 		r.byPath[libPath] = registration
-		r.byInode[inode] = registration
+		r.byID[pathID] = registration
 		return
 	}
 
 	log.Debugf("registering library=%s", libPath)
-	registration := newRegistration(inode, rule.unregisterCB)
+	registration := newRegistration(pathID, rule.unregisterCB)
 	r.byPath[libPath] = registration
-	r.byInode[inode] = registration
+	r.byID[pathID] = registration
 }
 
 func (r *soRegistry) unregister(libPath string) {
@@ -248,7 +270,7 @@ func (r *soRegistry) unregister(libPath string) {
 		return
 	}
 
-	delete(r.byInode, registration.inode)
+	delete(r.byID, registration.pathID)
 	if registration.unregisterCB != nil {
 		err := registration.unregisterCB(libPath)
 		if err != nil {
@@ -257,9 +279,9 @@ func (r *soRegistry) unregister(libPath string) {
 	}
 }
 
-func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
+func newRegistration(pathID pathIdentifier, unregisterCB func(string) error) *soRegistration {
 	return &soRegistration{
-		inode:        inode,
+		pathID:       pathID,
 		unregisterCB: unregisterCB,
 		refcount:     1,
 	}
@@ -271,18 +293,4 @@ func followSymlink(path string) string {
 	}
 
 	return path
-}
-
-func getInode(path string) (uint64, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return 0, fmt.Errorf("invalid file stat")
-	}
-
-	return stat.Ino, nil
 }
