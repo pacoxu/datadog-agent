@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/moby/sys/mountinfo"
+	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
