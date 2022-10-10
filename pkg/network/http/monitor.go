@@ -10,7 +10,9 @@ package http
 
 import (
 	"fmt"
+	ebpf2 "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 
@@ -38,13 +40,14 @@ type MonitorStats struct {
 type Monitor struct {
 	handler func([]httpTX)
 
-	ebpfProgram            *ebpfProgram
-	batchManager           *batchManager
-	batchCompletionHandler *ddebpf.PerfHandler
-	telemetry              *telemetry
-	telemetrySnapshot      *telemetry
-	pollRequests           chan chan MonitorStats
-	statkeeper             *httpStatKeeper
+	ebpfProgram                     *ebpfProgram
+	batchManager                    *batchManager
+	batchCompletionHandler          *ddebpf.PerfHandler
+	classificationCompletionHandler *ddebpf.PerfHandler
+	telemetry                       *telemetry
+	telemetrySnapshot               *telemetry
+	pollRequests                    chan chan MonitorStats
+	statkeeper                      *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -100,15 +103,16 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	return &Monitor{
-		handler:                handler,
-		ebpfProgram:            mgr,
-		batchManager:           batchManager,
-		batchCompletionHandler: mgr.batchCompletionHandler,
-		telemetry:              telemetry,
-		telemetrySnapshot:      nil,
-		pollRequests:           make(chan chan MonitorStats),
-		closeFilterFn:          closeFilterFn,
-		statkeeper:             statkeeper,
+		handler:                         handler,
+		ebpfProgram:                     mgr,
+		batchManager:                    batchManager,
+		batchCompletionHandler:          mgr.batchCompletionHandler,
+		classificationCompletionHandler: mgr.classificationCompletionHandler,
+		telemetry:                       telemetry,
+		telemetrySnapshot:               nil,
+		pollRequests:                    make(chan chan MonitorStats),
+		closeFilterFn:                   closeFilterFn,
+		statkeeper:                      statkeeper,
 	}, nil
 }
 
@@ -122,7 +126,7 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	m.eventLoopWG.Add(1)
+	m.eventLoopWG.Add(2)
 	go func() {
 		defer m.eventLoopWG.Done()
 		for {
@@ -163,6 +167,26 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
+	go func() {
+		defer m.eventLoopWG.Done()
+		for {
+			select {
+			case dataEvent, ok := <-m.classificationCompletionHandler.DataChannel:
+				if !ok {
+					return
+				}
+
+				a := (*ebpf2.ConnTuple)(unsafe.Pointer(&dataEvent.Data[0]))
+
+				fmt.Println(a.String())
+				dataEvent.Done()
+			case _, ok := <-m.classificationCompletionHandler.LostChannel:
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
 	return nil
 }
 

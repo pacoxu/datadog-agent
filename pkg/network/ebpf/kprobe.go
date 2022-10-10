@@ -19,7 +19,7 @@ import (
 
 // Family returns whether a tuple is IPv4 or IPv6
 func (t ConnTuple) Family() ConnFamily {
-	if t.Metadata&uint16(IPv6) != 0 {
+	if t.Metadata&uint32(IPv6) != 0 {
 		return IPv6
 	}
 	return IPv4
@@ -27,7 +27,7 @@ func (t ConnTuple) Family() ConnFamily {
 
 // Type returns whether a tuple is TCP or UDP
 func (t ConnTuple) Type() ConnType {
-	if t.Metadata&uint16(TCP) != 0 {
+	if t.Metadata&uint32(TCP) != 0 {
 		return TCP
 	}
 	return UDP

@@ -46,7 +46,8 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
     }
 
     // detect protocol
-    infer_protocol(connection_state, request_fragment, sizeof(request_fragment));
+//    bool protocolWasUnknown = connection_state->protocol == PROTOCOL_UNKNOWN;
+    infer_protocol(&connection_state->protocol, request_fragment, sizeof(request_fragment));
 
     // Update the state.
     bpf_map_update_elem(&connection_states, &tup, connection_state, BPF_ANY);
@@ -54,6 +55,12 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
     if (connection_state->protocol == PROTOCOL_UNKNOWN) {
         log_debug("[protocol dispatcher]: Unknown protocol, payload not identified\n");
         return 0;
+//    } else if (protocolWasUnknown) {
+        // Getting here, means that the protocol is known, and the protocol was unknown before we were able to classify it.
+        //        report_protocol(&connection_state);
+//        u32 cpu = bpf_get_smp_processor_id();
+//        bpf_perf_event_output(skb, &classified_connections, cpu, &tup, sizeof(tup));
+//        log_debug("[protocol dispatcher]: Identify protocol for the first time %d\n", connection_state->protocol);
     }
 
     log_debug("[protocol dispatcher]: Calling protocol: %d\n", connection_state->protocol);
@@ -103,6 +110,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     log_debug("tracepoint/net/netif_receive_skb\n");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
+//    classification_flush_connections(ctx);
     http_flush_batch(ctx);
     return 0;
 }

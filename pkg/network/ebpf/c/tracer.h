@@ -31,9 +31,10 @@ typedef struct {
     __u64 timestamp;
     __u32 flags;
     __u32 cookie;
-    __u8 direction;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u8 direction;
+    protocol_t protocol;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -70,9 +71,13 @@ typedef struct {
     // Metadata description:
     // First bit indicates if the connection is TCP (1) or UDP (0)
     // Second bit indicates if the connection is V6 (1) or V4 (0)
-    __u16 metadata; // This is that big because it seems that we at least need a 32-bit aligned struct
-    __u16 protocol;
+    __u32 metadata; // This is that big because it seems that we at least need a 32-bit aligned struct
 } conn_tuple_t;
+
+typedef struct {
+    __u32 tcp_seq;
+    protocol_t protocol;
+} connection_state_t;
 
 typedef struct {
     __u32 retransmits;

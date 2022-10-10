@@ -6,9 +6,10 @@ package ebpf
 type ProtocolEnum uint16
 
 const (
-	ProtocolUnknown ProtocolEnum = 0x0
-	ProtocolHTTP                 = 0x1
-	ProtocolHTTP2                = 0x2
+	ProtocolUnknown  ProtocolEnum = 0x0
+	ProtocolHTTP     ProtocolEnum = 0x1
+	ProtocolHTTP2    ProtocolEnum = 0x2
+	ProtocolMaxValue ProtocolEnum = 0x3
 )
 
 type ConnTuple struct {
@@ -20,8 +21,7 @@ type ConnTuple struct {
 	Dport    uint16
 	Netns    uint32
 	Pid      uint32
-	Metadata uint16
-	Protocol uint16
+	Metadata uint32
 }
 type TCPStats struct {
 	Retransmits       uint32
@@ -36,9 +36,11 @@ type ConnStats struct {
 	Timestamp    uint64
 	Flags        uint32
 	Cookie       uint32
-	Direction    uint8
 	Sent_packets uint64
 	Recv_packets uint64
+	Direction    uint8
+	Protocol     uint16
+	Pad_cgo_0    [4]byte
 }
 type Conn struct {
 	Tup        ConnTuple

@@ -47,15 +47,14 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return false;
 }
 
-static __always_inline void infer_protocol(connection_state_t *connection_state, const char *buf, __u32 size) {
-    if (connection_state->protocol != PROTOCOL_UNKNOWN) {
-        log_debug("[protocol dispatcher]: Payload already identified: %d\n", connection_state->protocol);
+static __always_inline void infer_protocol(protocol_t *protocol, const char *buf, __u32 size) {
+    if (*protocol != PROTOCOL_UNKNOWN) {
+        return;
     } else if (is_http(buf, size)) {
-        log_debug("[protocol dispatcher]: HTTP payload identified: %d %s\n", connection_state->tcp_seq, buf);
-        connection_state->protocol = PROTOCOL_HTTP;
+        log_debug("[protocol_classifier] hey - http\n");
+        *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
-        log_debug("[protocol dispatcher]: HTTP/2 payload identified: %d %s\n", connection_state->tcp_seq, buf);
-        connection_state->protocol = PROTOCOL_HTTP2;
+        *protocol = PROTOCOL_HTTP2;
     }
 }
 
@@ -91,5 +90,4 @@ static __always_inline bool should_process_packet(struct __sk_buff *skb, skb_inf
 
     return true;
 }
-
 #endif

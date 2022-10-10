@@ -32,6 +32,7 @@ const (
 	httpBatchesMap    = "http_batches"
 	httpBatchStateMap = "http_batch_state"
 	httpBatchEvents   = "http_batch_events"
+	classificationMap = "classified_connections"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
@@ -59,7 +60,8 @@ type ebpfProgram struct {
 	subprograms []subprogram
 	mapCleaner  *ddebpf.MapCleaner
 
-	batchCompletionHandler *ddebpf.PerfHandler
+	batchCompletionHandler          *ddebpf.PerfHandler
+	classificationCompletionHandler *ddebpf.PerfHandler
 }
 
 type subprogram interface {
@@ -70,7 +72,7 @@ type subprogram interface {
 	Stop()
 }
 
-var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
+var tailCalls = []manager.TailCallRoute{
 	{
 		ProgArrayName: protocolDispatcherProgramsMap,
 		Key:           httpProg,
@@ -94,6 +96,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	// TODO: guy
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
+	classificationCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -115,6 +118,16 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
 					RecordGetter:       batchCompletionHandler.RecordGetter,
+				},
+			},
+			{
+				Map: manager.Map{Name: classificationMap},
+				PerfMapOptions: manager.PerfMapOptions{
+					PerfRingBufferSize: 256 * os.Getpagesize(),
+					Watermark:          1,
+					RecordHandler:      classificationCompletionHandler.RecordHandler,
+					LostHandler:        classificationCompletionHandler.LostHandler,
+					RecordGetter:       classificationCompletionHandler.RecordGetter,
 				},
 			},
 		},
@@ -148,12 +161,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	sslProgram, _ := newSSLProgram(c, sockFD)
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:               bc,
-		cfg:                    c,
-		offsets:                offsets,
-		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{sslProgram},
+		Manager:                         errtelemetry.NewManager(mgr, bpfTelemetry),
+		bytecode:                        bc,
+		cfg:                             c,
+		offsets:                         offsets,
+		batchCompletionHandler:          batchCompletionHandler,
+		classificationCompletionHandler: classificationCompletionHandler,
+		subprograms:                     []subprogram{sslProgram},
 	}
 
 	return program, nil
@@ -259,6 +273,7 @@ func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
+	e.classificationCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}

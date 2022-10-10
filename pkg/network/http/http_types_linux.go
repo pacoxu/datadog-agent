@@ -3,6 +3,15 @@
 
 package http
 
+type protocolEnum uint16
+
+const (
+	ProtocolUnknown  protocolEnum = 0x0
+	ProtocolHTTP     protocolEnum = 0x1
+	ProtocolHTTP2    protocolEnum = 0x2
+	ProtocolMaxValue protocolEnum = 0x3
+)
+
 type httpConnTuple struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -12,8 +21,7 @@ type httpConnTuple struct {
 	Dport    uint16
 	Netns    uint32
 	Pid      uint32
-	Metadata uint16
-	Protocol uint16
+	Metadata uint32
 }
 type httpBatchState struct {
 	Idx      uint64
@@ -61,7 +69,7 @@ const (
 	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
-	httpProg = 0x0
+	httpProg = 0x1
 
 	libPathMaxSize = 0x78
 )

@@ -17,12 +17,13 @@ package ebpf
 */
 import "C"
 
-type ProtocolEnum uint16
+type ProtocolEnum C.protocol_t
 
 const (
-	ProtocolUnknown ProtocolEnum = C.PROTOCOL_UNKNOWN
-	ProtocolHTTP                 = C.PROTOCOL_HTTP
-	ProtocolHTTP2                = C.PROTOCOL_HTTP2
+	ProtocolUnknown  ProtocolEnum = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP     ProtocolEnum = C.PROTOCOL_HTTP
+	ProtocolHTTP2    ProtocolEnum = C.PROTOCOL_HTTP2
+	ProtocolMaxValue ProtocolEnum = C.MAX_PROTOCOLS
 )
 
 type ConnTuple C.conn_tuple_t

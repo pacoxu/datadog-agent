@@ -9,10 +9,20 @@
 package http
 
 /*
+#include "../ebpf/c/protocol-classification-defs.h"
 #include "../ebpf/c/tracer.h"
 #include "../ebpf/c/http-types.h"
 */
 import "C"
+
+type protocolEnum C.protocol_t
+
+const (
+	ProtocolUnknown  protocolEnum = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP     protocolEnum = C.PROTOCOL_HTTP
+	ProtocolHTTP2    protocolEnum = C.PROTOCOL_HTTP2
+	ProtocolMaxValue protocolEnum = C.MAX_PROTOCOLS
+)
 
 type httpConnTuple C.conn_tuple_t
 type httpBatchState C.http_batch_state_t
@@ -30,7 +40,7 @@ const (
 	HTTPBatchPages = C.HTTP_BATCH_PAGES
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
 
-	httpProg = C.HTTP_PROG
+	httpProg = C.PROTOCOL_HTTP
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )

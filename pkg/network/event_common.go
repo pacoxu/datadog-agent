@@ -8,6 +8,7 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"strings"
 	"time"
 
@@ -290,7 +291,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
-	// TODO: Add protocol
+	Protocol  ebpf.ProtocolEnum
 }
 
 // Via has info about the routing decision for a flow
