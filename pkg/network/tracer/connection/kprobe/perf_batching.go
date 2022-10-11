@@ -13,14 +13,15 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/cilium/ebpf"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
 
-// perfBatchManager is responsible for two things:
+// perfBatchManager is reponsbile for two things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
 // * Detecting idle batches (this might happen in hosts with a low connection churn);

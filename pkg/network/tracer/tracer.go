@@ -356,12 +356,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
 
-	for _, key := range delta.Conns {
-		if key.DPort == 80 || key.SPort == 80 {
-			fmt.Println("guy")
-		}
-	}
-
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)

@@ -26,7 +26,6 @@ const (
 )
 
 var mainProbes = map[probes.ProbeName]string{
-	//"socket/protocol_classifier": "socket__protocol_classifier",
 	probes.TCPSendMsg:           "kprobe__tcp_sendmsg",
 	probes.TCPSendMsgReturn:     "kretprobe__tcp_sendmsg",
 	probes.TCPCleanupRBuf:       "kprobe__tcp_cleanup_rbuf",
