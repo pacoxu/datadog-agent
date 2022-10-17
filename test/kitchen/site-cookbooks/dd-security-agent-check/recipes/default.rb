@@ -82,7 +82,9 @@ if node['platform_family'] != 'windows'
   # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
   # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
   package %w(python3 perl) do
-    flush_cache [ :before ]
+    if ['oracle'].include?(node[:platform])
+      flush_cache [ :before ]
+    end
   end
 
   if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
