@@ -1039,7 +1039,17 @@ func (p *Probe) DumpDiscarders() (string, error) {
 		return "", err
 	}
 
-	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap)
+	statsFB, err := p.Map("discarder_stats_fb")
+	if err != nil {
+		return "", err
+	}
+
+	statsBB, err := p.Map("discarder_stats_bb")
+	if err != nil {
+		return "", err
+	}
+
+	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
 	if err != nil {
 		return "", err
 	}
@@ -1057,7 +1067,9 @@ func (p *Probe) DumpDiscarders() (string, error) {
 	encoder := yaml.NewEncoder(fp)
 	defer encoder.Close()
 
-	encoder.Encode(dump)
+	if err := encoder.Encode(dump); err != nil {
+		return "", err
+	}
 
 	return fp.Name(), nil
 }
