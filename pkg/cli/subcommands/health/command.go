@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package commands
+// Package health builds a 'health' command to be used in binaries.
+package health
 
 import (
 	"encoding/json"
@@ -14,61 +15,61 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Health returns a cobra command to report on the agent's health
-func Health(loggerName config.LoggerName, confPath *string, flagNoColor *bool) *cobra.Command {
-	return &cobra.Command{
+type GlobalParams struct {
+	ConfFilePath string
+	ConfigName   string
+	LoggerName   string
+}
+
+// MakeCommand returns a `health` command to be used by agent binaries.
+func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:          "health",
 		Short:        "Print the current agent health",
 		Long:         ``,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			globalParams := globalParamsGetter()
 
-			if *flagNoColor {
-				color.NoColor = true
-			}
-
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				config.Datadog.SetConfigName("datadog-cluster")
-			}
-
-			// Set up config without secrets so that running the health command (e.g. from container
-			// liveness probe script) does not trigger a secret backend command call.
-			err := common.SetupConfigWithoutSecrets(*confPath, "")
-			if err != nil {
-				return fmt.Errorf("unable to set up global agent configuration: %v", err)
-			}
-
-			err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			return requestHealth()
+			return fxutil.OneShot(requestHealth,
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigName:        globalParams.ConfigName,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot(globalParams.LoggerName, "off", true)),
+				core.Bundle,
+			)
 		},
 	}
+
+	return cmd
 }
-func requestHealth() error {
+
+func requestHealth(log log.Component, config config.Component) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, config.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 	}
 
 	// Set session token
