@@ -370,7 +370,7 @@ func TestGetParentPath(t *testing.T) {
 		parentPathCache: parentPathCache,
 	}
 
-	parentPath := mr.getParentPath(3)
+	parentPath, _ := mr.getParentPath(3)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
 
@@ -397,6 +397,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = mr.getParentPath(0)
+		_, _ = mr.getParentPath(0)
 	}
 }
