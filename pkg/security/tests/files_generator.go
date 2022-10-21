@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
-// +build functionaltests
+//go:build functionaltests || stresstests
+// +build functionaltests stresstests
 
 package tests
 
@@ -86,7 +86,7 @@ type EstimatedResult struct {
 
 	DiscarderPushed       []FileStat
 	ParentDiscarderPushed []FileStat
-	EventDiscarded        []FileStat
+	EventDiscarded        int64
 	EventSent             int64
 }
 
@@ -98,14 +98,14 @@ func (es *EstimatedResult) Print() {
 	fmt.Printf("  == Estimated result:\n")
 	fmt.Printf("  DiscarderPushed: %d\n", len(es.DiscarderPushed))
 	fmt.Printf("  ParentDiscarderPushed: %d\n", len(es.ParentDiscarderPushed))
-	fmt.Printf("  EventDiscarded: %d\n", len(es.EventDiscarded))
+	fmt.Printf("  EventDiscarded: %d\n", es.EventDiscarded)
 	fmt.Printf("  EventSent: %d\n", es.EventSent)
 }
 
 func (es *EstimatedResult) add(es2 *EstimatedResult) {
 	es.DiscarderPushed = append(es.DiscarderPushed, es2.DiscarderPushed...)
 	es.ParentDiscarderPushed = append(es.ParentDiscarderPushed, es2.ParentDiscarderPushed...)
-	es.EventDiscarded = append(es.EventDiscarded, es2.EventDiscarded...)
+	es.EventDiscarded += es2.EventDiscarded
 	es.EventSent += es2.EventSent
 	es.FileCreation += es2.FileCreation
 	es.FileAccess += es2.FileAccess
@@ -203,7 +203,7 @@ func (fgc *FileGeneratorContext) generateNewFile() {
 		fgc.addFileToMetric(filepath.Dir(file), &fgc.result.ParentDiscarderPushed)
 		fgc.result.EventSent++
 	} else {
-		fgc.addFileToMetric(file, &fgc.result.EventDiscarded)
+		fgc.result.EventDiscarded++
 	}
 
 	file = filepath.Join(fgc.baseDirNoDiscarders, filename)
@@ -230,7 +230,7 @@ func (fgc *FileGeneratorContext) unlinkFile() {
 		fgc.addFileToMetric(filepath.Dir(file), &fgc.result.ParentDiscarderPushed)
 		fgc.result.EventSent++
 	} else {
-		fgc.addFileToMetric(file, &fgc.result.EventDiscarded)
+		fgc.result.EventDiscarded++
 	}
 	_ = os.Remove(file)
 
@@ -253,12 +253,12 @@ func (fgc *FileGeneratorContext) openFile() {
 	file := filepath.Join(fgc.baseDirDiscarders, randomFile)
 	fgc.Printf("Opening: %s\n", file)
 	_ = os.WriteFile(file, []byte("file opened once!\n"), 0666)
-	fgc.addFileToMetric(file, &fgc.result.EventDiscarded)
+	fgc.result.EventDiscarded++
 
 	file = filepath.Join(fgc.baseDirNoDiscarders, randomFile)
 	fgc.Printf("Opening: %s\n", file)
 	_ = os.WriteFile(file, []byte("file opened once!\n"), 0666)
-	fgc.addFileToMetric(file, &fgc.result.EventDiscarded)
+	fgc.result.EventDiscarded++
 
 	fgc.result.FileAccess++
 }
@@ -316,6 +316,7 @@ func (fgc *FileGeneratorContext) unmountParentWordDir() {
 	if err != nil {
 		fmt.Printf("unmountParentWordDir error: %s\n", err)
 	}
+	fgc.files = []string{}
 }
 
 func (fgc *FileGeneratorContext) unmountWordDir() {
@@ -327,6 +328,7 @@ func (fgc *FileGeneratorContext) unmountWordDir() {
 	if err != nil {
 		fmt.Printf("unmountWordDir error: %s\n", err)
 	}
+	fgc.files = []string{}
 }
 
 func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
@@ -413,5 +415,6 @@ func (fg *FileGenerator) Wait() (*EstimatedResult, error) {
 	for _, ctx := range fg.contexts {
 		res.add(&ctx.result)
 	}
+	fg.contexts = make(map[string]*FileGeneratorContext)
 	return &res, nil
 }
