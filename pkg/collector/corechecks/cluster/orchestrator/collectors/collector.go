@@ -11,6 +11,8 @@ package collectors
 import (
 	"fmt"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -90,10 +92,11 @@ func (cm CollectorMetadata) FullName() string {
 // CollectorRunConfig is the configuration used to initialize or run the
 // collector.
 type CollectorRunConfig struct {
-	APIClient   *apiserver.APIClient
-	ClusterID   string
-	Config      *config.OrchestratorConfig
-	MsgGroupRef *atomic.Int32
+	APIClient             *apiserver.APIClient
+	ClusterID             string
+	Config                *config.OrchestratorConfig
+	MsgGroupRef           *atomic.Int32
+	ManifestCollectionCfg *ManifestBufferConfig
 }
 
 // CollectorRunResult contains information about what the collector has done.
@@ -104,4 +107,29 @@ type CollectorRunResult struct {
 	Result             processors.ProcessResult
 	ResourcesListed    int
 	ResourcesProcessed int
+}
+
+// ManifestBufferConfig contains information about buffering manifest.
+type ManifestBufferConfig struct {
+	KubeClusterName          string
+	ClusterID                string
+	MaxPerMessage            int
+	MaxWeightPerMessageBytes int
+	MsgGroupRef              *atomic.Int32
+	BufferedManifestEnabled  bool
+	ManifestChan             chan *model.Manifest
+	MaxBufferedManifests     int
+}
+
+// GetProcessorCtxFromCollectorRunCfg returns ProcessorContext from CollectorRunConfig
+func GetProcessorCtxFromCollectorRunCfg(rcfg *CollectorRunConfig, nodeType orchestrator.NodeType) *processors.ProcessorContext {
+	return &processors.ProcessorContext{
+		APIClient:               rcfg.APIClient,
+		Cfg:                     rcfg.Config,
+		ClusterID:               rcfg.ClusterID,
+		MsgGroupID:              rcfg.MsgGroupRef.Inc(),
+		NodeType:                nodeType,
+		BufferedManifestEnabled: rcfg.ManifestCollectionCfg.BufferedManifestEnabled,
+		ManifestChan:            rcfg.ManifestCollectionCfg.ManifestChan,
+	}
 }

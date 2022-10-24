@@ -36,6 +36,7 @@ type CollectorBundle struct {
 	inventory          *inventory.CollectorInventory
 	stopCh             chan struct{}
 	runCfg             *collectors.CollectorRunConfig
+	manifestBuffer     *ManifestBuffer
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -49,17 +50,20 @@ type CollectorBundle struct {
 // If that's not the case then it'll select all available collectors that are
 // marked as stable.
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
+	mb := NewManifestBuffer(chk)
 	bundle := &CollectorBundle{
 		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:   chk.apiClient,
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+			APIClient:             chk.apiClient,
+			ClusterID:             chk.clusterID,
+			Config:                chk.orchestratorConfig,
+			MsgGroupRef:           chk.groupID,
+			ManifestCollectionCfg: mb.Cfg,
 		},
-		stopCh: make(chan struct{}),
+		stopCh:         make(chan struct{}),
+		manifestBuffer: mb,
 	}
 
 	bundle.prepare()
@@ -219,6 +223,13 @@ func (cb *CollectorBundle) Initialize() error {
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+
+	// Start a thread to buffer manifests and kill it when the check is finished.
+	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+		cb.manifestBuffer.Start(sender)
+		defer cb.manifestBuffer.Stop()
+	}
+
 	for _, collector := range cb.collectors {
 		runStartTime := time.Now()
 
@@ -233,7 +244,9 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(collector.Metadata().NodeType))
-		if cb.runCfg.Config.IsManifestCollectionEnabled {
+
+		// We don't buffer manifest when it's pod check
+		if cb.runCfg.Config.IsManifestCollectionEnabled && !cb.manifestBuffer.Cfg.BufferedManifestEnabled {
 			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 		}
 	}
