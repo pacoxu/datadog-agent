@@ -53,7 +53,7 @@ func setupConfig(cfg config.Config, origin string, confFilePath string, configNa
 	}
 	cfg.AddConfigPath(DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadCustom(cfg, origin, !withoutSecrets)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {

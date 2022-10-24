@@ -1206,12 +1206,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadCustom(Datadog, "datadog.yaml", true)
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true)
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadCustom(Datadog, "datadog.yaml", false)
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false)
 }
 
 func findUnknownKeys(config Config) []string {
@@ -1325,10 +1325,8 @@ func useHostEtc(config Config) {
 	}
 }
 
-// LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	warnings := Warnings{}
-
+// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCustom
+func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1337,6 +1335,34 @@ func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error
 		DetectFeatures()
 		applyOverrideFuncs(config)
 	}()
+
+	warnings, err := LoadCustom(config, origin, loadSecret)
+	if err != nil {
+		return warnings, err
+	}
+
+	// If this variable is set to true, we'll use DefaultPython for the Python version,
+	// ignoring the python_version configuration value.
+	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
+		pv := config.GetString("python_version")
+		if pv != DefaultPython {
+			log.Warnf("Python version has been forced to %s", DefaultPython)
+		}
+
+		AddOverride("python_version", DefaultPython)
+	}
+
+	LoadProxyFromEnv(config)
+	SanitizeAPIKeyConfig(config, "api_key")
+	// setTracemallocEnabled *must* be called before setNumWorkers
+	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
+	setNumWorkers(config)
+	return warnings, nil
+}
+
+// LoadCustom reads config into the provided config object
+func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
+	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
@@ -1374,23 +1400,7 @@ func LoadCustom(config Config, origin string, loadSecret bool) (*Warnings, error
 		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
 	}
 
-	// If this variable is set to true, we'll use DefaultPython for the Python version,
-	// ignoring the python_version configuration value.
-	if ForceDefaultPython == "true" && config.IsKnown("python_version") {
-		pv := config.GetString("python_version")
-		if pv != DefaultPython {
-			log.Warnf("Python version has been forced to %s", DefaultPython)
-		}
-
-		AddOverride("python_version", DefaultPython)
-	}
-
 	useHostEtc(config)
-	LoadProxyFromEnv(config)
-	SanitizeAPIKeyConfig(config, "api_key")
-	// setTracemallocEnabled *must* be called before setNumWorkers
-	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
-	setNumWorkers(config)
 	return &warnings, nil
 }
 
