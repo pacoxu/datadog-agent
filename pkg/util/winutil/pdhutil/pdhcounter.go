@@ -60,7 +60,7 @@ type PdhMultiInstanceCounterSet struct {
 func (p *PdhCounterSet) Initialize(className string) error {
 
 	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+	_, _ = tryRefreshPdhObjectCache()
 
 	// the counter index list may be > 1, but for class name, only take the first
 	// one.  If not present at all, try the english counter name
@@ -97,7 +97,7 @@ func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleIn
 	//               to make code more clear and deduplicate here and Initialize()
 
 	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+	_, _ = tryRefreshPdhObjectCache()
 
 	var p PdhSingleInstanceCounterSet
 	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
@@ -326,7 +326,7 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 		p.RemoveInvalidInstance(inst)
 	}
 	// check for newly found instances
-	p.MakeInstanceList()
+	_ = p.MakeInstanceList()
 	return
 }
 
@@ -342,7 +342,7 @@ func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
 
 // Close closes the query handle, freeing the underlying windows resources.
 func (p *PdhCounterSet) Close() {
-	PdhCloseQuery(p.query)
+	pfnPdhCloseQuery(p.query)
 }
 
 func getCounterIndexList(cname string) ([]int, error) {
