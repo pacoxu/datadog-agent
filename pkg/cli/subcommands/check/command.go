@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -84,9 +85,10 @@ type cliParams struct {
 }
 
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath         string
+	SysProbeConfFilePath string
+	ConfigName           string
+	LoggerName           string
 }
 
 // MakeCommand returns a `check` to be used by agent binaries.
@@ -109,9 +111,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigName:        globalParams.ConfigName,
-					ConfigLoadSecrets: true,
+					ConfFilePath:         globalParams.ConfFilePath,
+					SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+					ConfigName:           globalParams.ConfigName,
+					ConfigLoadSecrets:    true,
 				}.LogForOneShot(globalParams.LoggerName, "off", true)),
 				core.Bundle,
 			)
@@ -153,7 +156,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {

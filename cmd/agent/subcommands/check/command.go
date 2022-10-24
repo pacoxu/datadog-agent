@@ -17,10 +17,10 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := check.MakeCommand(func() check.GlobalParams {
 		return check.GlobalParams{
-			ConfFilePath: globalParams.ConfFilePath,
+			ConfFilePath:         globalParams.ConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
-			ConfigName:   "datadog",
-			LoggerName:   "CORE",
+			ConfigName:           "datadog",
+			LoggerName:           "CORE",
 		}
 	})
 
