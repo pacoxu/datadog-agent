@@ -75,7 +75,7 @@ func New(configPath string) (*Config, error) {
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
 		// if the configuration file path was supplied on the command line,
-		// add that first so it's first in line
+		// add that first, so it's first in line
 		aconfig.SystemProbe.AddConfigPath(configPath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(configPath, ".yaml") {
@@ -85,20 +85,20 @@ func New(configPath string) (*Config, error) {
 	aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", true)
-	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	var e viper.ConfigFileNotFoundError
-	if err != nil && (!errors.As(err, &e) || configPath != "") {
-		// special-case permission-denied with a clearer error message
-		if errors.Is(err, fs.ErrPermission) {
+	if err != nil {
+		var e viper.ConfigFileNotFoundError
+		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
+			// do nothing, we can ignore a missing system-probe.yaml config file
+		} else if errors.Is(err, fs.ErrPermission) {
+			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
-				err = fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
+				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
 			} else {
-				err = fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
+				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
-			err = fmt.Errorf("unable to load system-probe config file: %w", err)
+			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
-		return nil, err
 	}
 	return load()
 }
