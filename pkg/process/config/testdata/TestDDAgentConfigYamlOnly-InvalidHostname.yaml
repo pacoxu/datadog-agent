@@ -1,5 +1,4 @@
 hostname: localhost
 
-process_agent_enabled: true
 process_config:
   enabled: 'true'

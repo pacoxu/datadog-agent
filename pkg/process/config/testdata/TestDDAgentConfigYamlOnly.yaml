@@ -1,6 +1,5 @@
 api_key: apikey_20
 
-process_agent_enabled: true
 process_config:
   process_collection:
     enabled: true
