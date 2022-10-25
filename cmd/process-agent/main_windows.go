@@ -33,8 +33,6 @@ const ServiceName = "datadog-process-agent"
 // opts are the command-line options
 var defaultConfigPath = flags.DefaultConfPath
 var defaultSysProbeConfigPath = flags.DefaultSysProbeConfPath
-var defaultConfdPath = flags.DefaultConfdPath
-var defaultLogFilePath = flags.DefaultLogFilePath
 
 var winopts struct {
 	installService   bool
@@ -49,8 +47,6 @@ func init() {
 	if err == nil {
 		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
 		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
-		defaultConfdPath = filepath.Join(pd, "conf.d")
-		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
 	}
 }
 
@@ -226,14 +222,6 @@ func stopService() error {
 	return controlService(svc.Stop, svc.Stopped)
 }
 
-func restartService() error {
-	var err error
-	if err = stopService(); err == nil {
-		err = startService()
-	}
-	return err
-}
-
 func controlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -287,7 +275,10 @@ func installService() error {
 	defer s.Close()
 	err = eventlog.InstallAsEventCreate(ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info)
 	if err != nil {
-		s.Delete()
+		err2 := s.Delete()
+		if err2 != nil {
+			err = fmt.Errorf("%v, Error deleting service %s %v", err, ServiceName, err2)
+		}
 		return fmt.Errorf("SetupEventLogSource() failed: %s", err)
 	}
 	return nil

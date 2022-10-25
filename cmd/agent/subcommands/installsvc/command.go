@@ -62,7 +62,10 @@ func installService() error {
 	defer s.Close()
 	err = eventlog.InstallAsEventCreate(config.ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info)
 	if err != nil {
-		s.Delete()
+		err2 := s.Delete()
+		if err2 != nil {
+			err = fmt.Errorf("%v, Error deleting service %s %v", err, config.ServiceName, err2)
+		}
 		return fmt.Errorf("SetupEventLogSource() failed: %s", err)
 	}
 	return nil

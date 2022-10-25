@@ -188,14 +188,6 @@ func stopService() error {
 	return controlService(svc.Stop, svc.Stopped)
 }
 
-func restartService() error {
-	var err error
-	if err = stopService(); err == nil {
-		err = startService()
-	}
-	return err
-}
-
 func controlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -249,7 +241,10 @@ func installService() error {
 	defer s.Close()
 	err = eventlog.InstallAsEventCreate(ServiceName, eventlog.Error|eventlog.Warning|eventlog.Info)
 	if err != nil {
-		s.Delete()
+		err2 := s.Delete()
+		if err2 != nil {
+			err = fmt.Errorf("%v, Error deleting service %s %v", err, ServiceName, err2)
+		}
 		return fmt.Errorf("SetupEventLogSource() failed: %s", err)
 	}
 	return nil
