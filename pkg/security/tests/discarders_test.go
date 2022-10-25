@@ -93,7 +93,7 @@ func addResultMetrics(res *EstimatedResult, metrics map[string]*metric) {
 	addMetricVal(metrics, "action.file_deletion", res.FileDeletion)
 }
 
-func addMemoryMetrics(metrics map[string]*metric) {
+func addMemoryMetrics(t *testing.T, test *testModule, metrics map[string]*metric) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	fmt.Printf("Memory usage:\n")
@@ -106,6 +106,14 @@ func addMemoryMetrics(metrics map[string]*metric) {
 
 	fmt.Printf("  GCSys = %v MB\n", mem.GCSys/(1<<10))
 	addMetricVal(metrics, "mem.gc_sys", int64(mem.GCSys/(1<<10)))
+
+	discarders, err := test.probe.GetDiscarders()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nb_discarders := len(discarders.Inodes)
+	fmt.Printf("  Nb discarders = %d\n", nb_discarders)
+	addMetricVal(metrics, "mem.nb_discarders", int64(nb_discarders))
 }
 
 func addModuleMetrics(test *testModule, ms map[string]*metric) {
@@ -211,7 +219,7 @@ func runTestDiscarders(t *testing.T, metrics map[string]*metric) {
 	res = nil
 
 	addModuleMetrics(test, metrics)
-	addMemoryMetrics(metrics)
+	addMemoryMetrics(t, test, metrics)
 }
 
 // goal: measure the performance behavior of discarders on load
@@ -229,11 +237,11 @@ func TestDiscarders(t *testing.T) {
 func init() {
 	flag.IntVar(&nbDiscardersRuns, "nb_discarders_runs", 5, "number of tests to run")
 	flag.DurationVar(&testDuration, "test_duration", time.Second*60*5, "duration of the test")
-	flag.IntVar(&maxTotalFiles, "max_total_files", 1000, "maximum number of files")
-	flag.IntVar(&eventsPerSec, "events_per_sec", 200, "max events per sec")
+	flag.IntVar(&maxTotalFiles, "max_total_files", 10000, "maximum number of files")
+	flag.IntVar(&eventsPerSec, "events_per_sec", 2000, "max events per sec")
 	flag.BoolVar(&mountDir, "mount_dir", true, "set to true to have a working directory tmpfs mounted")
 	flag.BoolVar(&mountParentDir, "mount_parent_dir", false, "set to true to have a parent working directory tmpfs mounted")
-	flag.DurationVar(&remountEvery, "remount_every", time.Second*60, "time between every mount points umount/remount")
-	flag.IntVar(&maxDepth, "max_depth", 3, "directories max depth")
+	flag.DurationVar(&remountEvery, "remount_every", time.Second*60*3, "time between every mount points umount/remount")
+	flag.IntVar(&maxDepth, "max_depth", 1, "directories max depth")
 	flag.BoolVar(&open, "open", true, "true to enable randomly open events")
 }
