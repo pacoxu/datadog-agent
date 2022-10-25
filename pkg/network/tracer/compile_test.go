@@ -19,6 +19,7 @@ import (
 func TestConntrackCompile(t *testing.T) {
 	cfg := config.New()
 	cfg.BPFDebug = true
+	cfg.RuntimeCompilerOutputDir = t.TempDir()
 	_, err := getRuntimeCompiledConntracker(cfg)
 	require.NoError(t, err)
 }

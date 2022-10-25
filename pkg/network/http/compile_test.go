@@ -23,6 +23,7 @@ func TestHttpCompile(t *testing.T) {
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
+	cfg.RuntimeCompilerOutputDir = t.TempDir()
 	_, err := getRuntimeCompiledHTTP(cfg)
 	require.NoError(t, err)
 }

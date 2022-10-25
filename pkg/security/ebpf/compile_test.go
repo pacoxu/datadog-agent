@@ -21,6 +21,7 @@ func TestLoaderCompile(t *testing.T) {
 	syscfg, err := sysconfig.New("")
 	require.NoError(t, err)
 	cfg, err := config.NewConfig(syscfg)
+	cfg.RuntimeCompilerOutputDir = t.TempDir()
 	require.NoError(t, err)
 	_, err = getRuntimeCompiledPrograms(cfg, false, nil)
 	require.NoError(t, err)
