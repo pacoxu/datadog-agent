@@ -92,11 +92,11 @@ func (cm CollectorMetadata) FullName() string {
 // CollectorRunConfig is the configuration used to initialize or run the
 // collector.
 type CollectorRunConfig struct {
-	APIClient             *apiserver.APIClient
-	ClusterID             string
-	Config                *config.OrchestratorConfig
-	MsgGroupRef           *atomic.Int32
-	ManifestCollectionCfg *ManifestBufferConfig
+	APIClient         *apiserver.APIClient
+	ClusterID         string
+	Config            *config.OrchestratorConfig
+	MsgGroupRef       *atomic.Int32
+	ManifestBufferCfg *ManifestBufferConfig
 }
 
 // CollectorRunResult contains information about what the collector has done.
@@ -129,7 +129,7 @@ func GetProcessorCtxFromCollectorRunCfg(rcfg *CollectorRunConfig, nodeType orche
 		ClusterID:               rcfg.ClusterID,
 		MsgGroupID:              rcfg.MsgGroupRef.Inc(),
 		NodeType:                nodeType,
-		BufferedManifestEnabled: rcfg.ManifestCollectionCfg.BufferedManifestEnabled,
-		ManifestChan:            rcfg.ManifestCollectionCfg.ManifestChan,
+		BufferedManifestEnabled: rcfg.ManifestBufferCfg.BufferedManifestEnabled,
+		ManifestChan:            rcfg.ManifestBufferCfg.ManifestChan,
 	}
 }

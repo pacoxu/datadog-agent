@@ -58,7 +58,7 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 // flushManifest flushes manifests by chunking them first then sending them to the sender
 func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 	manifests := cb.bufferedManifests
-	cb.bufferedManifests = []interface{}{}
+	cb.bufferedManifests = cb.bufferedManifests[:0]
 	ctx := &processors.ProcessorContext{
 		ClusterID:  cb.Cfg.ClusterID,
 		MsgGroupID: cb.Cfg.MsgGroupRef.Inc(),
