@@ -22,6 +22,3 @@ func httpsSupported(t *testing.T) bool {
 	return false
 }
 
-func classificationSupported(config *config.Config) bool {
-	return false
-}
