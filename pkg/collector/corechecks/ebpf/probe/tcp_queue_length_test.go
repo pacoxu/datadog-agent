@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestTCPQueueLengthCompile(t *testing.T) {
+	testutil.SetLogLevel(t, "debug")
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		t.Fatal(err)

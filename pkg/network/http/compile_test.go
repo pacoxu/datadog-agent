@@ -15,12 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestHttpCompile(t *testing.T) {
 	if !rtcHTTPSupported(t) {
 		t.Skip("HTTP Runtime compilation not supported on this kernel version")
 	}
+	testutil.SetLogLevel(t, "debug")
 	cfg := config.New()
 	cfg.BPFDebug = true
 	cfg.RuntimeCompilerOutputDir = t.TempDir()

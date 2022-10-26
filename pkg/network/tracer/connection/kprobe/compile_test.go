@@ -14,9 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestTracerCompile(t *testing.T) {
+	testutil.SetLogLevel(t, "debug")
 	cfg := config.New()
 	cfg.BPFDebug = true
 	cfg.RuntimeCompilerOutputDir = t.TempDir()
