@@ -785,7 +785,9 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     if (syscall->exec.args.counter < syscall->exec.args.count && syscall->exec.args.counter <= MAX_ARGS_ELEMENTS) {
         args_envs = &syscall->exec.args;
     } else if (syscall->exec.envs.counter < syscall->exec.envs.count) {
-        syscall->exec.args_envs_ctx.parsing_offset = syscall->exec.args_envs_ctx.envs_offset;
+        if (syscall->exec.envs.counter == 0) {
+            syscall->exec.args_envs_ctx.parsing_offset = syscall->exec.args_envs_ctx.envs_offset;
+        }
         args_envs = &syscall->exec.envs;
     } else {
         return 0;
@@ -794,6 +796,8 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs, EVENT_ARGS_ENVS);
 
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
+
+    args_envs->truncated = 1;
 
     return 0;
 }
@@ -818,6 +822,8 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs, EVENT_ARGS_ENVS);
 
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS);
+
+    args_envs->truncated = 1;
 
     return 0;
 }
