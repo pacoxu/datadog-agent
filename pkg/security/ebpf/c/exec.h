@@ -586,6 +586,123 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     return 0;
 }
 
+// the following functions must use the {peek,pop}_current_or_impersonated_exec_syscall to retrieve the syscall context
+// because the task performing the exec syscall may change its pid in the flush_old_exec() kernel function
+
+struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        u32 pid = pid_tgid;
+        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+        if (!pid_tgid_execing_ptr) {
+            return NULL;
+        }
+        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
+        u32 tgid_execing = pid_tgid_execing >> 32;
+        u32 pid_execing = pid_tgid_execing;
+        if (tgid != tgid_execing || pid == pid_execing) {
+            return NULL;
+        }
+        // the current task is impersonating its thread group leader
+        syscall = peek_task_syscall(pid_tgid_execing, EVENT_EXEC);
+    }
+    return syscall;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
+    if (!syscall) {
+        u64 pid_tgid = bpf_get_current_pid_tgid();
+        u32 tgid = pid_tgid >> 32;
+        u32 pid = pid_tgid;
+        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+        if (!pid_tgid_execing_ptr) {
+            return NULL;
+        }
+        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
+        u32 tgid_execing = pid_tgid_execing >> 32;
+        u32 pid_execing = pid_tgid_execing;
+        if (tgid != tgid_execing || pid == pid_execing) {
+            return NULL;
+        }
+        // the current task is impersonating its thread group leader
+        syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+    }
+    return syscall;
+}
+
+int __attribute__((always_inline)) fill_exec_context(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    // avoid getting the envs offset if we already got it from a previously called kprobe
+    if (syscall->exec.args_envs_ctx.args_count == 0) {
+        // call it here before the memory get replaced
+        fill_span_context(&syscall->exec.span_context);
+
+        bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
+    }
+
+    return 0;
+}
+
+SEC("kprobe/prepare_binprm")
+int kprobe_prepare_binprm(struct pt_regs *ctx) {
+    return fill_exec_context(ctx);
+}
+
+SEC("kprobe/bprm_execve")
+int kprobe_bprm_execve(struct pt_regs *ctx) {
+    return fill_exec_context(ctx);
+}
+
+SEC("kprobe/security_bprm_check")
+int kprobe_security_bprm_check(struct pt_regs *ctx) {
+    return fill_exec_context(ctx);
+}
+
+SEC("kprobe/get_envs_offset")
+int kprobe_get_envs_offset(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    u32 key = 0;
+    struct str_array_buffer_t *buff = bpf_map_lookup_elem(&str_array_buffers, &key);
+    if (!buff) {
+        return 0;
+    }
+
+    int i;
+    const char *str;
+    long bytes_read;
+
+#pragma unroll
+    for (i = 0; i < MAX_ARGS_READ_PER_TAIL; i++) {
+        bpf_probe_read(&str, sizeof(str), (void *)&syscall->exec.args.array[syscall->exec.args_envs_ctx.args_count]);
+        if (!str) {
+            return 0;
+        }
+        bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)str);
+        if (bytes_read <= 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
+            syscall->exec.args_envs_ctx.envs_offset = 0;
+            return 0;
+        }
+        syscall->exec.args_envs_ctx.envs_offset += bytes_read;
+        syscall->exec.args_envs_ctx.args_count++;
+    }
+
+    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
+
+    syscall->exec.args_envs_ctx.envs_offset = 0;
+    return 0;
+}
+
 void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs, u64 event_type) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
@@ -658,7 +775,7 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
 
 SEC("kprobe/parse_args_envs_split")
 int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -679,50 +796,6 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
 
     return 0;
-}
-
-struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        u32 pid = pid_tgid;
-        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-        if (!pid_tgid_execing_ptr) {
-            return NULL;
-        }
-        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
-        u32 tgid_execing = pid_tgid_execing >> 32;
-        u32 pid_execing = pid_tgid_execing;
-        if (tgid != tgid_execing || pid == pid_execing) {
-            return NULL;
-        }
-        // the current task is impersonating its thread group leader
-        syscall = peek_task_syscall(pid_tgid_execing, EVENT_EXEC);
-    }
-    return syscall;
-}
-
-struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
-    if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        u32 pid = pid_tgid;
-        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-        if (!pid_tgid_execing_ptr) {
-            return NULL;
-        }
-        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
-        u32 tgid_execing = pid_tgid_execing >> 32;
-        u32 pid_execing = pid_tgid_execing;
-        if (tgid != tgid_execing || pid == pid_execing) {
-            return NULL;
-        }
-        // the current task is impersonating its thread group leader
-        syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
-    }
-    return syscall;
 }
 
 SEC("kprobe/parse_args_envs")
@@ -786,7 +859,7 @@ int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
 
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -824,76 +897,6 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     }
 
     return 0;
-}
-
-SEC("kprobe/get_envs_offset")
-int kprobe_get_envs_offset(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        return 0;
-    }
-
-    u32 key = 0;
-    struct str_array_buffer_t *buff = bpf_map_lookup_elem(&str_array_buffers, &key);
-    if (!buff) {
-        return 0;
-    }
-
-    int i;
-    const char *str;
-    long bytes_read;
-
-#pragma unroll
-    for (i = 0; i < MAX_ARGS_READ_PER_TAIL; i++) {
-        bpf_probe_read(&str, sizeof(str), (void *)&syscall->exec.args.array[syscall->exec.args_envs_ctx.args_count]);
-        if (!str) {
-            return 0;
-        }
-        bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)str);
-        if (bytes_read <= 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
-            syscall->exec.args_envs_ctx.envs_offset = 0;
-            return 0;
-        }
-        syscall->exec.args_envs_ctx.envs_offset += bytes_read;
-        syscall->exec.args_envs_ctx.args_count++;
-    }
-
-    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
-
-    syscall->exec.args_envs_ctx.envs_offset = 0;
-    return 0;
-}
-
-int __attribute__((always_inline)) fill_exec_context(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
-    if (!syscall) {
-        return 0;
-    }
-
-    // avoid getting the args length if we already got it from a previously called kprobe
-    if (syscall->exec.args_envs_ctx.args_count == 0) {
-        // call it here before the memory get replaced
-        fill_span_context(&syscall->exec.span_context);
-
-        bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
-    }
-
-    return 0;
-}
-
-SEC("kprobe/prepare_binprm")
-int kprobe_prepare_binprm(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
-}
-
-SEC("kprobe/bprm_execve")
-int kprobe_bprm_execve(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
-}
-
-SEC("kprobe/security_bprm_check")
-int kprobe_security_bprm_check(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
 }
 
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
