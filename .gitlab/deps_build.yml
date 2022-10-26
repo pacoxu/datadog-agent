@@ -154,6 +154,9 @@ build_processed_btfhub_archive:
     - mv ubuntu/20.04/x86_64/*.btf.tar.xz btfs-amd64/ubuntu/20.04/
     - mv ubuntu/18.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/18.04/
     - mv ubuntu/20.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/20.04/
+    # Copy over custom btfs
+    - mkdir -p btfs-amd64/ubuntu/16.04
+    - mv $CI_PROJECT_DIR/4.4.0-34-generic.btf.tar.xz btfs-amd64/ubuntu/16.04/
     # Clean up platform names to match the names we get at runtime from gopsutil
     - mv btfs-amd64/amzn btfs-amd64/amazon
     - mv btfs-arm64/amzn btfs-arm64/amazon
