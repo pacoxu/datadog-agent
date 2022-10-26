@@ -18,6 +18,8 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
+	"github.com/hashicorp/go-multierror"
+	"github.com/umisama/go-cpe"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -115,34 +117,40 @@ func NewKernelVersion() (*Version, error) {
 	return kernelVersionCache.Version, err
 }
 
-func newKernelVersion() (*Version, error) {
-	osReleasePaths := make([]string, 0, 2*3)
+func hostPaths(paths ...string) []string {
+	hostPaths := make([]string, 0, 2*len(paths))
 
 	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		osReleasePaths = append(
-			osReleasePaths,
-			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
-			filepath.Join(hostRoot, osrelease.EtcOsRelease),
-		)
+		for _, path := range paths {
+			hostPaths = append(
+				hostPaths,
+				filepath.Join(hostRoot, path),
+			)
+		}
 	}
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
 	if config.IsContainerized() && util.PathExists("/host") {
-		osReleasePaths = append(
-			osReleasePaths,
-			filepath.Join("/host", osrelease.UsrLibOsRelease),
-			filepath.Join("/host", osrelease.EtcOsRelease),
-		)
+		for _, path := range paths {
+			hostPaths = append(
+				hostPaths,
+				filepath.Join("/host", path),
+			)
+		}
 	}
 
+	return hostPaths
+}
+
+func newKernelVersion() (*Version, error) {
 	// Finally default to actual default values
 	// This is last in the search order since we don't want os-release files
 	// from the distribution of the container when deployed on a host with
 	// different values
-	osReleasePaths = append(
-		osReleasePaths,
+	osReleasePaths := append(
+		hostPaths(osrelease.UsrLibOsRelease, osrelease.EtcOsRelease),
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
 	)
@@ -156,22 +164,51 @@ func newKernelVersion() (*Version, error) {
 	if err := unix.Uname(&uname); err != nil {
 		return nil, fmt.Errorf("error calling uname: %w", err)
 	}
-	unameRelease := unix.ByteSliceToString(uname.Release[:])
 
-	var release map[string]string
+	version := &Version{
+		Code:         kv,
+		UnameRelease: unix.ByteSliceToString(uname.Release[:]),
+	}
+
+	var multiErr *multierror.Error
 	for _, osReleasePath := range osReleasePaths {
-		release, err = osrelease.ReadFile(osReleasePath)
+		version.OsRelease, err = osrelease.ReadFile(osReleasePath)
 		if err == nil {
-			return &Version{
-				OsRelease:     release,
-				OsReleasePath: osReleasePath,
-				Code:          kv,
-				UnameRelease:  unameRelease,
-			}, nil
+			return version, nil
+		} else {
+			multiErr = multierror.Append(multiErr, err)
 		}
 	}
 
-	return nil, fmt.Errorf("failed to detect operating system version for %s", unameRelease)
+	// Some Amazon AMIs have no /etc/os-release file, only /etc/system-release-cpe
+	for _, systemReleasePath := range hostPaths("/etc/system-release-cpe") {
+		if content, err := os.ReadFile(systemReleasePath); err == nil {
+			if cpeItem, err := cpe.NewItemFromFormattedString(string(content)); err == nil {
+				version.OsRelease = make(map[string]string)
+				if cpeVersion := cpeItem.Version(); cpeVersion.IsValid() {
+					version.OsRelease["VERSION"] = cpeVersion.String()
+					version.OsRelease["VERSION_ID"] = cpeVersion.String()
+				}
+
+				if cpeVendor := cpeItem.Vendor(); cpeVendor.IsValid() {
+					switch cpeVendor := cpeVendor.String(); cpeVendor {
+					case "amazon":
+						version.OsRelease["ID"] = "amzn" // Seriously Amazon...
+					default:
+						version.OsRelease["ID"] = cpeVendor
+					}
+				}
+
+				return version, nil
+			} else {
+				multiErr = multierror.Append(multiErr, err)
+			}
+		} else {
+			multiErr = multierror.Append(multiErr, err)
+		}
+	}
+
+	return nil, fmt.Errorf("failed to detect operating system version for %s: %w", version.UnameRelease, multiErr.ErrorOrNil())
 }
 
 // IsDebianKernel returns whether the kernel is a debian kernel
