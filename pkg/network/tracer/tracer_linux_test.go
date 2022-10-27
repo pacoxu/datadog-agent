@@ -11,18 +11,12 @@ package tracer
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
-	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net"
-	nethttp "net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -31,6 +25,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -1685,7 +1682,6 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 
 	assert.Greater(t, p_tcp_sendmsg, int64(0))
 }
-
 
 func TestBlockingReadCounts(t *testing.T) {
 	tr, err := NewTracer(testConfig())

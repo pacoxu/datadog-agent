@@ -8,6 +8,24 @@
 
 package tracer
 
+import (
+	"bufio"
+	"context"
+	"net"
+	nethttp "net/http"
+	"syscall"
+	"testing"
+	"time"
+
+	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
+)
+
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
 	if !classificationSupported(cfg) {
