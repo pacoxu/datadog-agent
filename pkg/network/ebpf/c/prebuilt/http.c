@@ -677,17 +677,17 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
         return 1;
     }
 
-    if (read_location(ctx, &od->write_buffer.ptr, sizeof(uint64_t), &call_data.b_len)) {
+    if (read_location(ctx, &od->write_buffer.ptr, sizeof(call_data.b_data), &call_data.b_data)) {
         log_debug("[go-tls-write] failed reading buffer pointer for pid %d\n", pid);
         return 1;
     }
 
-    if (read_location(ctx, &od->write_buffer.len, sizeof(call_data.b_data), &call_data.b_data)) {
+    if (read_location(ctx, &od->write_buffer.len, sizeof(call_data.b_len), &call_data.b_len)) {
         log_debug("[go-tls-write] failed reading buffer length for pid %d\n", pid);
         return 1;
     }
 
-    bpf_map_update_elem(&go_tls_read_args, &call_key, &call_data, BPF_ANY);
+    bpf_map_update_elem(&go_tls_write_args, &call_key, &call_data, BPF_ANY);
     return 0;
 }
 

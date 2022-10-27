@@ -17,6 +17,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	nethttp "net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	httptest "github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1668,4 +1670,68 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
 
 	assert.Greater(t, p_tcp_sendmsg, int64(0))
+}
+
+// GoTLS test
+
+func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
+	const ClientBin string = "./testutil/cmd/gotls_client/gotls_client"
+	const ServerAddr string = "localhost:8081"
+	const ExpectedOccurrences int = 10
+
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
+	}
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	// Given
+	var closeServer func() = httptest.HTTPServer(t, ServerAddr, httptest.Options{
+		EnableTLS: true,
+	})
+
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.BPFDebug = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+	require.NoError(t, tr.RegisterClient("1"))
+
+	// When
+	req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request", ServerAddr, nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	clientBuildCmd := fmt.Sprintf("go build -o %s ./testutil/cmd/gotls_client", ClientBin)
+	clientCmd := fmt.Sprintf("%s %s %d", ClientBin, ServerAddr, ExpectedOccurrences)
+	t.Cleanup(func() { os.RemoveAll(ClientBin) })
+	_ = testutil.RunCommands(t, []string{clientBuildCmd, clientCmd}, false)
+
+	closeServer()
+
+	// Then
+	occurences := 0
+	require.Eventually(t, func() bool {
+		stats, err := tr.GetActiveConnections("1")
+		require.NoError(t, err)
+		occurences += countRequestOccurrences(t, stats, req)
+		return occurences == ExpectedOccurrences
+	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured", ExpectedOccurrences, occurences)
+}
+
+func countRequestOccurrences(t *testing.T, conns *network.Connections, req *nethttp.Request) (occurences int) {
+	t.Helper()
+
+	expectedStatus := httptest.StatusFromPath(req.URL.Path)
+
+	for key, stats := range conns.HTTP {
+		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			occurences++
+		}
+	}
+
+	return
 }
