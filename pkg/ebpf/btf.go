@@ -51,9 +51,13 @@ func GetBTF(userProvidedBtfPath, collectionPath string) *btf.Spec {
 func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
 	si := host.GetStatusInformation()
 	platform := si.Platform
+	platformVersion := si.PlatformVersion
 	kernelVersion := si.KernelVersion
 
 	btfFolder := filepath.Join(collectionPath, platform)
+	if platform == "ubuntu" {
+		btfFolder = filepath.Join(btfFolder, platformVersion)
+	}
 	btfPath := filepath.Join(btfFolder, kernelVersion+".btf")
 	compressedBtfPath := btfPath + ".tar.xz"
 
